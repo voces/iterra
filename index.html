@@ -10,13 +10,25 @@
   <div id="app">
     <header>
       <h1>Iterra</h1>
-      <div id="tick-display">
-        <span>Ticks: </span><span id="tick-count">0</span>
-        <span id="turn-display">Turn: <span id="turn-count">0</span></span>
+      <div id="stats-display">
+        <span class="stat">Ticks: <span id="tick-count">0</span></span>
+        <span class="stat">HP: <span id="health-count">0</span>/<span id="max-health">0</span></span>
+        <span class="stat">Turn: <span id="turn-count">0</span></span>
       </div>
     </header>
 
     <main>
+      <section id="encounter-panel" class="hidden">
+        <h2>Encounter</h2>
+        <div id="encounter-info">
+          <div class="enemy-info">
+            <span class="enemy-name" id="enemy-name"></span>
+            <span class="enemy-health">HP: <span id="enemy-health">0</span>/<span id="enemy-max-health">0</span></span>
+          </div>
+          <div id="encounter-status"></div>
+        </div>
+      </section>
+
       <section id="actions-panel">
         <h2>Actions</h2>
         <input type="text" id="action-search" placeholder="Search actions..." autocomplete="off">

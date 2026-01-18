@@ -6,10 +6,18 @@ export function createActor(
   options: {
     maxTicks?: number;
     speed?: number;
+    maxHealth?: number;
+    damage?: number;
     actions?: Action[];
   } = {}
 ): Actor {
-  const { maxTicks = 10000, speed = 100, actions = [] } = options;
+  const {
+    maxTicks = 10000,
+    speed = 100,
+    maxHealth = 100,
+    damage = 10,
+    actions = [],
+  } = options;
 
   return {
     id,
@@ -17,6 +25,9 @@ export function createActor(
     ticks: maxTicks,
     maxTicks,
     speed,
+    health: maxHealth,
+    maxHealth,
+    damage,
     actions: [...actions],
   };
 }
@@ -35,6 +46,18 @@ export function spendTicks(actor: Actor, amount: number): boolean {
   }
   actor.ticks -= amount;
   return true;
+}
+
+export function dealDamage(target: Actor, amount: number): void {
+  target.health = Math.max(0, target.health - amount);
+}
+
+export function heal(actor: Actor, amount: number): void {
+  actor.health = Math.min(actor.maxHealth, actor.health + amount);
+}
+
+export function isAlive(actor: Actor): boolean {
+  return actor.health > 0;
 }
 
 export function addAction(actor: Actor, action: Action): void {

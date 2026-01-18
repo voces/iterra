@@ -7,9 +7,16 @@ export class UI {
   private elements: {
     tickCount: HTMLElement;
     turnCount: HTMLElement;
+    healthCount: HTMLElement;
+    maxHealth: HTMLElement;
     actionSearch: HTMLInputElement;
     actionsList: HTMLElement;
     gameLog: HTMLElement;
+    encounterPanel: HTMLElement;
+    enemyName: HTMLElement;
+    enemyHealth: HTMLElement;
+    enemyMaxHealth: HTMLElement;
+    encounterStatus: HTMLElement;
   };
 
   constructor(game: Game) {
@@ -17,9 +24,16 @@ export class UI {
     this.elements = {
       tickCount: document.getElementById('tick-count')!,
       turnCount: document.getElementById('turn-count')!,
+      healthCount: document.getElementById('health-count')!,
+      maxHealth: document.getElementById('max-health')!,
       actionSearch: document.getElementById('action-search') as HTMLInputElement,
       actionsList: document.getElementById('actions-list')!,
       gameLog: document.getElementById('game-log')!,
+      encounterPanel: document.getElementById('encounter-panel')!,
+      enemyName: document.getElementById('enemy-name')!,
+      enemyHealth: document.getElementById('enemy-health')!,
+      enemyMaxHealth: document.getElementById('enemy-max-health')!,
+      encounterStatus: document.getElementById('encounter-status')!,
     };
 
     this.setupEventListeners();
@@ -47,13 +61,23 @@ export class UI {
   private subscribeToGame(): void {
     this.game.on('turn', () => {
       this.renderStatus();
+      this.renderEncounter();
       this.renderActions();
     });
     this.game.on('log', () => this.renderLog());
+    this.game.on('encounter-start', () => {
+      this.renderEncounter();
+      this.renderActions();
+    });
+    this.game.on('encounter-end', () => {
+      this.renderEncounter();
+      this.renderActions();
+    });
   }
 
   render(): void {
     this.renderStatus();
+    this.renderEncounter();
     this.renderActions();
     this.renderLog();
   }
@@ -62,6 +86,32 @@ export class UI {
     const player = this.game.state.player;
     this.elements.tickCount.textContent = player.ticks.toString();
     this.elements.turnCount.textContent = this.game.state.turn.toString();
+    this.elements.healthCount.textContent = player.health.toString();
+    this.elements.maxHealth.textContent = player.maxHealth.toString();
+  }
+
+  private renderEncounter(): void {
+    const encounter = this.game.state.encounter;
+
+    if (!encounter) {
+      this.elements.encounterPanel.classList.add('hidden');
+      return;
+    }
+
+    this.elements.encounterPanel.classList.remove('hidden');
+
+    const enemy = encounter.enemy;
+    this.elements.enemyName.textContent = enemy.name;
+    this.elements.enemyHealth.textContent = enemy.health.toString();
+    this.elements.enemyMaxHealth.textContent = enemy.maxHealth.toString();
+
+    let status = '';
+    if (encounter.enemyFleeing) {
+      status = 'Enemy is fleeing!';
+    } else if (encounter.playerFleeing) {
+      status = 'You are fleeing!';
+    }
+    this.elements.encounterStatus.textContent = status;
   }
 
   private renderActions(): void {

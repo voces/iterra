@@ -1,8 +1,15 @@
 import type { GameState, Action, LogEntry } from './types.ts';
 import { createPlayer } from './player.ts';
-import { canAffordAction, spendTicks, addTicks } from './actor.ts';
+import { canAffordAction, spendTicks, addTicks, isAlive } from './actor.ts';
+import {
+  createEncounter,
+  processEnemyTurn,
+  handlePlayerActionResult,
+  endEncounter,
+} from './encounter.ts';
+import { getRandomEnemy } from './enemies.ts';
 
-export type GameEventType = 'turn' | 'log';
+export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end';
 
 export type GameEventCallback = (game: Game) => void;
 
@@ -15,6 +22,7 @@ export class Game {
       player: createPlayer(),
       turn: 0,
       log: [],
+      encounter: null,
     };
   }
 
@@ -25,8 +33,21 @@ export class Game {
   performAction(action: Action): boolean {
     const player = this.state.player;
 
+    // Check if action is allowed in current state
+    if (this.state.encounter && action.tags.includes('non-combat')) {
+      this.log(`Cannot ${action.name.toLowerCase()} during an encounter!`);
+      return false;
+    }
+
+    if (!this.state.encounter && action.tags.includes('combat')) {
+      this.log(`No enemy to ${action.name.toLowerCase()}.`);
+      return false;
+    }
+
     if (!canAffordAction(player, action)) {
-      this.log(`Not enough ticks for ${action.name}. Need ${action.tickCost}, have ${player.ticks}.`);
+      this.log(
+        `Not enough ticks for ${action.name}. Need ${action.tickCost}, have ${player.ticks}.`
+      );
       return false;
     }
 
@@ -36,12 +57,94 @@ export class Game {
       addTicks(player, action.tickGain);
     }
 
-    const result = action.execute(player);
+    const context = { encounter: this.state.encounter ?? undefined };
+    const result = action.execute(player, context);
     this.state.turn++;
     this.log(result.message);
 
+    // Handle encounter-specific results
+    if (this.state.encounter) {
+      handlePlayerActionResult(this.state.encounter, result, player);
+
+      if (this.state.encounter.ended) {
+        this.endCurrentEncounter();
+      } else {
+        // Enemy turn
+        this.processEnemyTurns();
+      }
+    } else {
+      // Random encounter chance when wandering
+      if (action.id === 'wander') {
+        this.checkForEncounter();
+      }
+    }
+
     this.emit('turn');
     return true;
+  }
+
+  private checkForEncounter(): void {
+    const encounterChance = 0.3;
+    if (Math.random() < encounterChance) {
+      this.startEncounter();
+    }
+  }
+
+  startEncounter(enemy?: ReturnType<typeof getRandomEnemy>): void {
+    const encounter = createEncounter(enemy);
+    this.state.encounter = encounter;
+    this.log(`A wild ${encounter.enemy.name} appears!`);
+    this.emit('encounter-start');
+  }
+
+  private processEnemyTurns(): void {
+    if (!this.state.encounter || this.state.encounter.ended) return;
+
+    const encounter = this.state.encounter;
+    const player = this.state.player;
+
+    // Process enemy action
+    const enemyAction = processEnemyTurn(encounter, player);
+
+    if (enemyAction) {
+      this.log(enemyAction.message);
+
+      if (enemyAction.encounterEnded) {
+        if (!isAlive(player)) {
+          endEncounter(encounter, 'defeat');
+        } else if (enemyAction.fled) {
+          endEncounter(encounter, 'enemy_escaped');
+        } else if (encounter.playerFleeing) {
+          endEncounter(encounter, 'player_escaped');
+        }
+        this.endCurrentEncounter();
+      }
+    }
+  }
+
+  private endCurrentEncounter(): void {
+    if (!this.state.encounter) return;
+
+    const result = this.state.encounter.result;
+    const enemy = this.state.encounter.enemy;
+
+    switch (result) {
+      case 'victory':
+        this.log(`You defeated the ${enemy.name}!`);
+        break;
+      case 'defeat':
+        this.log('You have been defeated...');
+        break;
+      case 'player_escaped':
+        this.log('You escaped safely.');
+        break;
+      case 'enemy_escaped':
+        this.log(`The ${enemy.name} got away.`);
+        break;
+    }
+
+    this.state.encounter = null;
+    this.emit('encounter-end');
   }
 
   log(message: string): void {
@@ -74,16 +177,49 @@ export class Game {
   }
 
   getAvailableActions(): Action[] {
-    return this.state.player.actions;
+    const actions = this.state.player.actions;
+    const inCombat = this.state.encounter !== null;
+    const enemyFleeing = this.state.encounter?.enemyFleeing ?? false;
+
+    return actions.filter((action) => {
+      // Filter out non-combat actions during encounters
+      if (inCombat && action.tags.includes('non-combat')) {
+        return false;
+      }
+
+      // Filter out combat actions outside of encounters
+      if (!inCombat && action.tags.includes('combat')) {
+        return false;
+      }
+
+      // Chase only available when enemy is fleeing
+      if (action.id === 'chase' && !enemyFleeing) {
+        return false;
+      }
+
+      // Let go only available when enemy is fleeing
+      if (action.id === 'let-go' && !enemyFleeing) {
+        return false;
+      }
+
+      // Can't flee if already fleeing (waiting for enemy response)
+      if (action.id === 'flee' && this.state.encounter?.playerFleeing) {
+        return false;
+      }
+
+      return true;
+    });
   }
 
   filterActions(query: string): Action[] {
+    const available = this.getAvailableActions();
     const q = query.toLowerCase().trim();
+
     if (!q) {
-      return this.getAvailableActions();
+      return available;
     }
 
-    return this.getAvailableActions().filter((action) => {
+    return available.filter((action) => {
       const nameMatch = action.name.toLowerCase().includes(q);
       const descMatch = action.description.toLowerCase().includes(q);
       const tagMatch = action.tags.some((tag) => tag.toLowerCase().includes(q));
