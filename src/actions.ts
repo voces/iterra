@@ -1,5 +1,8 @@
 import type { Action, Actor, ActionContext } from './types.ts';
-import { dealDamage, isAlive, addSaturation } from './actor.ts';
+import { dealDamage, isAlive, addSaturation, addItem, removeItem, getItemCount } from './actor.ts';
+import { rollForResourceDiscovery, getResourceNode } from './resources.ts';
+import { getRecipe, canCraftRecipe, applyRecipe } from './recipes.ts';
+import { getItem } from './items.ts';
 
 // === Basic Actions ===
 
@@ -23,12 +26,13 @@ export const wander: Action = {
   tickCost: 300,
   tags: ['basic', 'exploration', 'movement', 'non-combat'],
   execute: (_actor: Actor, _context?: ActionContext) => {
-    // 25% chance to find berries
-    if (Math.random() < 0.25) {
+    const discovered = rollForResourceDiscovery();
+
+    if (discovered) {
       return {
         success: true,
-        message: 'You stumble upon a bush laden with ripe berries!',
-        foundResource: 'berries',
+        message: discovered.discoveryMessage,
+        foundResource: discovered.id,
       };
     }
 
@@ -56,39 +60,138 @@ export const gatherBerries: Action = {
   tags: ['gathering', 'non-combat'],
   execute: (actor: Actor, _context?: ActionContext) => {
     const amount = 2 + Math.floor(Math.random() * 3); // 2-4 berries
-    actor.inventory.berries += amount;
+    addItem(actor, 'berries', amount);
 
     return {
       success: true,
-      message: `You gather ${amount} berries. (${actor.inventory.berries} total)`,
+      message: `You gather ${amount} berries. (${getItemCount(actor, 'berries')} total)`,
     };
   },
 };
 
-export const eatBerries: Action = {
-  id: 'eat-berries',
-  name: 'Eat Berries',
-  description: 'Eat berries to restore saturation.',
-  tickCost: 50,
-  tags: ['consumption', 'non-combat'],
+export const gatherSticks: Action = {
+  id: 'gather-sticks',
+  name: 'Gather Sticks',
+  description: 'Collect sticks from the ground.',
+  tickCost: 100,
+  tags: ['gathering', 'non-combat'],
   execute: (actor: Actor, _context?: ActionContext) => {
-    if (actor.inventory.berries <= 0) {
-      return {
-        success: false,
-        message: 'You have no berries to eat.',
-      };
+    const amount = 2 + Math.floor(Math.random() * 3); // 2-4 sticks
+    addItem(actor, 'sticks', amount);
+
+    return {
+      success: true,
+      message: `You gather ${amount} sticks. (${getItemCount(actor, 'sticks')} total)`,
+    };
+  },
+};
+
+export const gatherRocks: Action = {
+  id: 'gather-rocks',
+  name: 'Gather Rocks',
+  description: 'Collect rocks from the ground.',
+  tickCost: 120,
+  tags: ['gathering', 'non-combat'],
+  execute: (actor: Actor, _context?: ActionContext) => {
+    const amount = 1 + Math.floor(Math.random() * 2); // 1-2 rocks
+    addItem(actor, 'rocks', amount);
+
+    return {
+      success: true,
+      message: `You gather ${amount} rocks. (${getItemCount(actor, 'rocks')} total)`,
+    };
+  },
+};
+
+// === Crafting Actions ===
+
+export const buildCampfire: Action = {
+  id: 'build-campfire',
+  name: 'Build Campfire',
+  description: 'Build a campfire using sticks and rocks. (5 sticks, 3 rocks)',
+  tickCost: 400,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    const recipe = getRecipe('campfire')!;
+    const structures = context?.game?.structures ?? new Set();
+    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
+
+    if (!canCraft) {
+      return { success: false, message: reason! };
     }
 
-    actor.inventory.berries -= 1;
-    const satGain = 4;
-    addSaturation(actor, satGain);
+    applyRecipe(recipe, actor.inventory);
+
+    if (context?.game && recipe.unlocks) {
+      context.game.structures.add(recipe.unlocks);
+    }
 
     return {
       success: true,
-      message: `You eat a berry. (+${satGain} saturation, ${actor.saturation}/${actor.maxSaturation})`,
+      message: 'You build a campfire. You can now cook meat!',
     };
   },
 };
+
+export const cookMeat: Action = {
+  id: 'cook-meat',
+  name: 'Cook Meat',
+  description: 'Cook raw meat on the campfire.',
+  tickCost: 200,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    const recipe = getRecipe('cookedMeat')!;
+    const structures = context?.game?.structures ?? new Set();
+    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
+
+    if (!canCraft) {
+      return { success: false, message: reason! };
+    }
+
+    applyRecipe(recipe, actor.inventory);
+
+    return {
+      success: true,
+      message: `You cook the meat. (${getItemCount(actor, 'cookedMeat')} cooked meat)`,
+    };
+  },
+};
+
+// === Consumption Actions ===
+
+function createEatAction(itemId: string, actionId: string, name: string, tickCost: number): Action {
+  const item = getItem(itemId);
+
+  return {
+    id: actionId,
+    name,
+    description: `Eat ${item?.name?.toLowerCase() ?? itemId} to restore saturation.`,
+    tickCost,
+    tags: ['consumption', 'non-combat'],
+    execute: (actor: Actor, _context?: ActionContext) => {
+      const count = getItemCount(actor, itemId);
+      if (count <= 0) {
+        return {
+          success: false,
+          message: `You have no ${item?.name?.toLowerCase() ?? itemId} to eat.`,
+        };
+      }
+
+      removeItem(actor, itemId, 1);
+      const satGain = item?.saturationGain ?? 1;
+      addSaturation(actor, satGain);
+
+      return {
+        success: true,
+        message: `You eat the ${item?.name?.toLowerCase() ?? itemId}. (+${satGain} saturation, ${actor.saturation}/${actor.maxSaturation})`,
+      };
+    },
+  };
+}
+
+export const eatBerries = createEatAction('berries', 'eat-berries', 'Eat Berries', 50);
+export const eatCookedMeat = createEatAction('cookedMeat', 'eat-cooked-meat', 'Eat Cooked Meat', 75);
+export const eatRawMeat = createEatAction('rawMeat', 'eat-raw-meat', 'Eat Raw Meat', 50);
 
 // === Combat Actions ===
 
@@ -133,7 +236,6 @@ export const flee: Action = {
       return { success: false, message: 'Nothing to flee from.' };
     }
 
-    // Speed affects flee chance: faster = better chance
     const enemy = context.encounter.enemy;
     const speedRatio = actor.speed / enemy.speed;
     const baseChance = 0.4;
@@ -214,11 +316,29 @@ export const letGo: Action = {
 // === Action Collections ===
 
 export const combatActions: Action[] = [attack, flee, chase, letGo];
-export const gatheringActions: Action[] = [gatherBerries, eatBerries];
+export const gatheringActions: Action[] = [gatherBerries, gatherSticks, gatherRocks];
+export const craftingActions: Action[] = [buildCampfire, cookMeat];
+export const consumptionActions: Action[] = [eatBerries, eatCookedMeat, eatRawMeat];
 
 export const initialPlayerActions: Action[] = [
   idle,
   wander,
   ...combatActions,
   ...gatheringActions,
+  ...craftingActions,
+  ...consumptionActions,
 ];
+
+// Helper to get gathering action for a resource node
+export function getGatherAction(nodeId: string): Action | undefined {
+  const node = getResourceNode(nodeId);
+  if (!node) return undefined;
+
+  const actionMap: Record<string, Action> = {
+    'gather-berries': gatherBerries,
+    'gather-sticks': gatherSticks,
+    'gather-rocks': gatherRocks,
+  };
+
+  return actionMap[node.gatherActionId];
+}

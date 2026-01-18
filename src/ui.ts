@@ -1,6 +1,7 @@
 import type { Action } from './types.ts';
 import type { Game } from './game.ts';
 import { canAffordAction } from './actor.ts';
+import { getItem } from './items.ts';
 
 export class UI {
   private game: Game;
@@ -11,7 +12,9 @@ export class UI {
     maxHealth: HTMLElement;
     saturationCount: HTMLElement;
     maxSaturation: HTMLElement;
-    berriesCount: HTMLElement;
+    inventoryList: HTMLElement;
+    structuresPanel: HTMLElement;
+    structuresList: HTMLElement;
     actionSearch: HTMLInputElement;
     actionsList: HTMLElement;
     gameLog: HTMLElement;
@@ -31,7 +34,9 @@ export class UI {
       maxHealth: document.getElementById('max-health')!,
       saturationCount: document.getElementById('saturation-count')!,
       maxSaturation: document.getElementById('max-saturation')!,
-      berriesCount: document.getElementById('berries-count')!,
+      inventoryList: document.getElementById('inventory-list')!,
+      structuresPanel: document.getElementById('structures-panel')!,
+      structuresList: document.getElementById('structures-list')!,
       actionSearch: document.getElementById('action-search') as HTMLInputElement,
       actionsList: document.getElementById('actions-list')!,
       gameLog: document.getElementById('game-log')!,
@@ -68,6 +73,7 @@ export class UI {
     this.game.on('turn', () => {
       this.renderStatus();
       this.renderInventory();
+      this.renderStructures();
       this.renderEncounter();
       this.renderActions();
     });
@@ -85,6 +91,7 @@ export class UI {
   render(): void {
     this.renderStatus();
     this.renderInventory();
+    this.renderStructures();
     this.renderEncounter();
     this.renderActions();
     this.renderLog();
@@ -102,7 +109,43 @@ export class UI {
 
   private renderInventory(): void {
     const player = this.game.state.player;
-    this.elements.berriesCount.textContent = player.inventory.berries.toString();
+    const inventory = player.inventory;
+
+    const items = Object.entries(inventory)
+      .filter(([_, count]) => count > 0)
+      .map(([itemId, count]) => {
+        const item = getItem(itemId);
+        const name = item?.name ?? itemId;
+        return `<span class="inventory-item">${name}: <span class="item-count">${count}</span></span>`;
+      });
+
+    if (items.length === 0) {
+      this.elements.inventoryList.innerHTML = '<span class="inventory-empty">Empty</span>';
+    } else {
+      this.elements.inventoryList.innerHTML = items.join('');
+    }
+  }
+
+  private renderStructures(): void {
+    const structures = this.game.state.structures;
+
+    if (structures.size === 0) {
+      this.elements.structuresPanel.classList.add('hidden');
+      return;
+    }
+
+    this.elements.structuresPanel.classList.remove('hidden');
+
+    const structureNames: Record<string, string> = {
+      campfire: 'Campfire',
+    };
+
+    const items = Array.from(structures).map((id) => {
+      const name = structureNames[id] ?? id;
+      return `<span class="structure-item">${name}</span>`;
+    });
+
+    this.elements.structuresList.innerHTML = items.join('');
   }
 
   private renderEncounter(): void {

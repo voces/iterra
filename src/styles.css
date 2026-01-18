@@ -100,16 +100,44 @@ section h2 {
 
 #inventory-list {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
 }
 
 .inventory-item {
   color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
 }
 
-#berries-count {
+.item-count {
   color: var(--accent);
   font-weight: bold;
+}
+
+.inventory-empty {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Structures Panel */
+#structures-panel {
+  border-left: 3px solid var(--success);
+}
+
+#structures-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.structure-item {
+  color: var(--success);
+  background: var(--bg-tertiary);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 500;
 }
 
 /* Encounter Panel */

@@ -11,6 +11,8 @@ import {
   heal,
   dealDamage,
   drainSaturation,
+  addItem,
+  getItemCount,
 } from './actor.ts';
 import {
   createEncounter,
@@ -18,7 +20,9 @@ import {
   handlePlayerActionResult,
   endEncounter,
 } from './encounter.ts';
-import { getRandomEnemy } from './enemies.ts';
+import { getRandomEnemy, generateLoot } from './enemies.ts';
+import { getResourceNode } from './resources.ts';
+import { getItem } from './items.ts';
 
 export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end';
 
@@ -37,7 +41,8 @@ export class Game {
       turn: 0,
       log: [],
       encounter: null,
-      berryBushFound: false,
+      availableNodes: new Set(),
+      structures: new Set(),
     };
   }
 
@@ -81,17 +86,13 @@ export class Game {
     this.log(result.message);
 
     // Handle resource discovery
-    if (result.foundResource === 'berries') {
-      this.state.berryBushFound = true;
+    if (result.foundResource) {
+      this.state.availableNodes.add(result.foundResource);
     }
 
-    // Deplete berry bush after gathering
-    if (action.id === 'gather-berries') {
-      // 60% chance bush is depleted after gathering
-      if (Math.random() < 0.6) {
-        this.state.berryBushFound = false;
-        this.log('The berry bush is now empty.');
-      }
+    // Handle resource depletion after gathering
+    if (action.tags.includes('gathering')) {
+      this.processResourceDepletion(action.id);
     }
 
     // Handle encounter-specific results
@@ -149,6 +150,26 @@ export class Game {
     }
   }
 
+  private processResourceDepletion(actionId: string): void {
+    // Map action IDs to resource node IDs
+    const actionToNode: Record<string, string> = {
+      'gather-berries': 'berryBush',
+      'gather-sticks': 'fallenBranches',
+      'gather-rocks': 'rockyOutcrop',
+    };
+
+    const nodeId = actionToNode[actionId];
+    if (!nodeId) return;
+
+    const node = getResourceNode(nodeId);
+    if (!node) return;
+
+    if (Math.random() < node.depletionChance) {
+      this.state.availableNodes.delete(nodeId);
+      this.log(`The ${node.name.toLowerCase()} is now depleted.`);
+    }
+  }
+
   private checkForEncounter(): void {
     const encounterChance = 0.3;
     if (Math.random() < encounterChance) {
@@ -197,6 +218,7 @@ export class Game {
     switch (result) {
       case 'victory':
         this.log(`You defeated the ${enemy.name}!`);
+        this.grantLoot(enemy);
         break;
       case 'defeat':
         this.log('You have been defeated...');
@@ -211,6 +233,26 @@ export class Game {
 
     this.state.encounter = null;
     this.emit('encounter-end');
+  }
+
+  private grantLoot(enemy: typeof this.state.player): void {
+    const loot = generateLoot(enemy);
+    const player = this.state.player;
+
+    const lootMessages: string[] = [];
+
+    for (const [itemId, amount] of Object.entries(loot)) {
+      if (amount > 0) {
+        addItem(player, itemId, amount);
+        const item = getItem(itemId);
+        const itemName = item?.name ?? itemId;
+        lootMessages.push(`${amount} ${itemName}`);
+      }
+    }
+
+    if (lootMessages.length > 0) {
+      this.log(`Loot: ${lootMessages.join(', ')}`);
+    }
   }
 
   log(message: string): void {
@@ -246,8 +288,27 @@ export class Game {
     const actions = this.state.player.actions;
     const inCombat = this.state.encounter !== null;
     const enemyFleeing = this.state.encounter?.enemyFleeing ?? false;
-    const hasBerries = this.state.player.inventory.berries > 0;
-    const bushAvailable = this.state.berryBushFound;
+    const player = this.state.player;
+
+    // Map gathering actions to their required resource nodes
+    const gatheringRequirements: Record<string, string> = {
+      'gather-berries': 'berryBush',
+      'gather-sticks': 'fallenBranches',
+      'gather-rocks': 'rockyOutcrop',
+    };
+
+    // Map consumption actions to their required items
+    const consumptionRequirements: Record<string, string> = {
+      'eat-berries': 'berries',
+      'eat-cooked-meat': 'cookedMeat',
+      'eat-raw-meat': 'rawMeat',
+    };
+
+    // Map crafting actions to their requirements
+    const craftingRequirements: Record<string, { requiresCampfire?: boolean; requiresItem?: string }> = {
+      'cook-meat': { requiresCampfire: true, requiresItem: 'rawMeat' },
+      'build-campfire': {},
+    };
 
     return actions.filter((action) => {
       // Filter out non-combat actions during encounters
@@ -275,13 +336,31 @@ export class Game {
         return false;
       }
 
-      // Gather berries only when bush is found
-      if (action.id === 'gather-berries' && !bushAvailable) {
+      // Check gathering requirements
+      const gatherNode = gatheringRequirements[action.id];
+      if (gatherNode && !this.state.availableNodes.has(gatherNode)) {
         return false;
       }
 
-      // Eat berries only when player has berries
-      if (action.id === 'eat-berries' && !hasBerries) {
+      // Check consumption requirements
+      const consumeItem = consumptionRequirements[action.id];
+      if (consumeItem && getItemCount(player, consumeItem) <= 0) {
+        return false;
+      }
+
+      // Check crafting requirements
+      const craftReqs = craftingRequirements[action.id];
+      if (craftReqs) {
+        if (craftReqs.requiresCampfire && !this.state.structures.has('campfire')) {
+          return false;
+        }
+        if (craftReqs.requiresItem && getItemCount(player, craftReqs.requiresItem) <= 0) {
+          return false;
+        }
+      }
+
+      // Don't show build campfire if already built
+      if (action.id === 'build-campfire' && this.state.structures.has('campfire')) {
         return false;
       }
 

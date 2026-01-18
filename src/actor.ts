@@ -10,7 +10,7 @@ export function createActor(
     damage?: number;
     saturation?: number;
     maxSaturation?: number;
-    inventory?: Partial<Inventory>;
+    inventory?: Inventory;
     actions?: Action[];
   } = {}
 ): Actor {
@@ -36,10 +36,7 @@ export function createActor(
     damage,
     saturation,
     maxSaturation,
-    inventory: {
-      berries: 0,
-      ...inventory,
-    },
+    inventory: { ...inventory },
     actions: [...actions],
   };
 }
@@ -111,4 +108,34 @@ export function addAction(actor: Actor, action: Action): void {
 
 export function removeAction(actor: Actor, actionId: string): void {
   actor.actions = actor.actions.filter((a) => a.id !== actionId);
+}
+
+// Inventory helpers
+export function getItemCount(actor: Actor, itemId: string): number {
+  return actor.inventory[itemId] ?? 0;
+}
+
+export function addItem(actor: Actor, itemId: string, amount: number): void {
+  actor.inventory[itemId] = (actor.inventory[itemId] ?? 0) + amount;
+}
+
+export function removeItem(actor: Actor, itemId: string, amount: number): boolean {
+  const current = actor.inventory[itemId] ?? 0;
+  if (current < amount) {
+    return false;
+  }
+  actor.inventory[itemId] = current - amount;
+  return true;
+}
+
+export function hasItem(actor: Actor, itemId: string, amount: number = 1): boolean {
+  return (actor.inventory[itemId] ?? 0) >= amount;
+}
+
+export function transferInventory(from: Actor, to: Actor): void {
+  for (const [itemId, amount] of Object.entries(from.inventory)) {
+    if (amount > 0) {
+      addItem(to, itemId, amount);
+    }
+  }
 }
