@@ -30,6 +30,8 @@ export type GameEventCallback = (game: Game) => void;
 
 const REGEN_AMOUNT = 2;
 const REGEN_SATURATION_COST = 1;
+const PASS_OUT_TICK_GAIN = 500;
+const PASS_OUT_HEALTH_COST = 10;
 
 export class Game {
   state: GameState;
@@ -134,6 +136,9 @@ export class Game {
     // Starvation damage when saturation too low
     this.processStarvation();
 
+    // Pass out if can't afford any action
+    this.processPassOut();
+
     this.emit('turn');
     return true;
   }
@@ -165,6 +170,43 @@ export class Game {
         this.triggerGameOver();
       }
     }
+  }
+
+  private canAffordAnyAction(): boolean {
+    const available = this.getAvailableActions();
+    const player = this.state.player;
+    return available.some((action) => canAffordAction(player, action));
+  }
+
+  private processPassOut(): void {
+    if (this.state.gameOver) return;
+    if (this.canAffordAnyAction()) return;
+
+    const player = this.state.player;
+
+    // Player passes out from exhaustion
+    this.log('You collapse from exhaustion...');
+    dealDamage(player, PASS_OUT_HEALTH_COST);
+    addTicks(player, PASS_OUT_TICK_GAIN);
+    this.state.turn++;
+
+    this.log(
+      `You wake up weakened. (-${PASS_OUT_HEALTH_COST} HP, +${PASS_OUT_TICK_GAIN} ticks)`
+    );
+
+    if (!isAlive(player)) {
+      this.log('You never wake up...');
+      this.triggerGameOver();
+      return;
+    }
+
+    // During combat, enemy gets a free attack while you're passed out
+    if (this.state.encounter && !this.state.encounter.ended) {
+      this.log(`The ${this.state.encounter.enemy.name} attacks while you're vulnerable!`);
+      this.processEnemyTurns();
+    }
+
+    this.emit('turn');
   }
 
   private triggerGameOver(): void {
