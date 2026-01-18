@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Iterra</title>
-  <script type="module" crossorigin src="/iterra/branches/claude-init-iterra-game-z51QH/assets/index-C9t7C7h4.js"></script>
-  <link rel="stylesheet" crossorigin href="/iterra/branches/claude-init-iterra-game-z51QH/assets/index-DXTpaxqT.css">
+  <script type="module" crossorigin src="/iterra/branches/claude-init-iterra-game-z51QH/assets/index-BQaZB6zd.js"></script>
+  <link rel="stylesheet" crossorigin href="/iterra/branches/claude-init-iterra-game-z51QH/assets/index-BeB_8HRz.css">
 </head>
 <body>
   <div id="game-over-panel" class="hidden">
@@ -20,38 +20,18 @@
     <header>
       <h1>Iterra</h1>
       <div id="stats-display">
-        <span class="stat">Lv.<span id="level-count">1</span></span>
-        <span class="stat">XP: <span id="xp-count">0</span>/<span id="xp-next">100</span></span>
-        <span class="stat">Ticks: <span id="tick-count">0</span></span>
-        <span class="stat">HP: <span id="health-count">0</span>/<span id="max-health">0</span></span>
-        <span class="stat">Sat: <span id="saturation-count">0</span>/<span id="max-saturation">0</span></span>
-        <span class="stat">Wt: <span id="weight-count">0</span>/<span id="max-weight">0</span></span>
-        <span class="stat">Turn: <span id="turn-count">0</span></span>
+        <span class="stat vital" title="Health"><span class="stat-icon">♥</span><span id="health-count">0</span>/<span id="max-health">0</span></span>
+        <span class="stat vital" title="Saturation"><span class="stat-icon">◆</span><span id="saturation-count">0</span>/<span id="max-saturation">0</span></span>
+        <span class="stat vital" title="Ticks"><span class="stat-icon">⏱</span><span id="tick-count">0</span></span>
+        <span class="stat secondary" title="Level"><span class="stat-label">Lv</span><span id="level-count">1</span></span>
+        <span class="stat secondary" title="Experience"><span class="stat-label">XP</span><span id="xp-count">0</span>/<span id="xp-next">100</span></span>
+        <span class="stat secondary" title="Weight"><span class="stat-label">Wt</span><span id="weight-count">0</span>/<span id="max-weight">0</span></span>
+        <span class="stat secondary" title="Turn"><span class="stat-label">T</span><span id="turn-count">0</span></span>
       </div>
     </header>
 
     <main>
-      <section id="character-stats-panel">
-        <h2>Character Stats <span id="free-points-display"></span></h2>
-        <div id="character-stats-list"></div>
-      </section>
-
-      <section id="equipment-panel">
-        <h2>Equipment</h2>
-        <div id="equipment-list"></div>
-      </section>
-
-      <section id="inventory-panel">
-        <h2>Inventory</h2>
-        <div id="inventory-list"></div>
-      </section>
-
-      <section id="structures-panel" class="hidden">
-        <h2>Structures</h2>
-        <div id="structures-list"></div>
-      </section>
-
-      <section id="encounter-panel" class="hidden">
+      <section id="encounter-panel" class="hidden priority-section">
         <h2>Encounter</h2>
         <div id="encounter-info">
           <div class="enemy-info">
@@ -62,7 +42,7 @@
         </div>
       </section>
 
-      <section id="loot-panel" class="hidden">
+      <section id="loot-panel" class="hidden priority-section">
         <h2>Loot</h2>
         <div id="loot-list"></div>
         <div id="loot-actions">
@@ -73,13 +53,45 @@
 
       <section id="actions-panel">
         <h2>Actions</h2>
-        <input type="text" id="action-search" placeholder="Search actions..." autocomplete="off">
+        <input type="text" id="action-search" placeholder="Search... (press /)" autocomplete="off">
         <div id="actions-list"></div>
       </section>
 
-      <section id="log-panel">
-        <h2>Log</h2>
-        <div id="game-log"></div>
+      <section id="log-panel" class="collapsible">
+        <h2 class="section-header" data-section="log">
+          <span class="toggle-icon">▼</span>
+          Log
+        </h2>
+        <div id="game-log" class="section-content"></div>
+      </section>
+
+      <section id="character-stats-panel" class="collapsible collapsed-mobile">
+        <h2 class="section-header" data-section="stats">
+          <span class="toggle-icon">▶</span>
+          Stats <span id="free-points-display"></span>
+        </h2>
+        <div id="character-stats-list" class="section-content"></div>
+      </section>
+
+      <section id="equipment-panel" class="collapsible collapsed-mobile">
+        <h2 class="section-header" data-section="equipment">
+          <span class="toggle-icon">▶</span>
+          Equipment
+        </h2>
+        <div id="equipment-list" class="section-content"></div>
+      </section>
+
+      <section id="inventory-panel" class="collapsible collapsed-mobile">
+        <h2 class="section-header" data-section="inventory">
+          <span class="toggle-icon">▶</span>
+          Inventory
+        </h2>
+        <div id="inventory-list" class="section-content"></div>
+      </section>
+
+      <section id="structures-panel" class="hidden">
+        <h2>Structures</h2>
+        <div id="structures-list"></div>
       </section>
     </main>
   </div>
