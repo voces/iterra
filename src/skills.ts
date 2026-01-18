@@ -52,7 +52,7 @@ export const SKILL_DESCRIPTIONS: Record<SkillType, string> = {
 
 // === Skill Creation ===
 
-export function createSkill(level: number = 1): Skill {
+export function createSkill(level: number = 0): Skill {
   return {
     level,
     xp: 0,
@@ -63,7 +63,7 @@ export function createSkill(level: number = 1): Skill {
 export function createEmptySkills(): Skills {
   const skills = {} as Skills;
   for (const skillType of SKILL_TYPES) {
-    skills[skillType] = createSkill(1);
+    skills[skillType] = createSkill(0);
   }
   return skills;
 }
@@ -127,12 +127,11 @@ export function getSkillBlockBonus(skillLevel: number): number {
 // === Crafting Skill Effects ===
 
 // Crafting failure chance based on skill level
-// At level 1: 25% failure chance
-// At level 50: ~5% failure chance
+// At level 0: 25% failure chance
 // At level 100: 0% failure chance
 export function getCraftingFailureChance(skillLevel: number): number {
   const baseFailure = 0.25;
-  const reduction = (skillLevel - 1) / 99; // 0 at level 1, 1 at level 100
+  const reduction = skillLevel / 100; // 0 at level 0, 1 at level 100
   return Math.max(0, baseFailure * (1 - reduction));
 }
 
@@ -141,14 +140,14 @@ export function getCraftingFailureChance(skillLevel: number): number {
 export function rollCraftingQuality(skillLevel: number): ItemQuality {
   const roll = Math.random() * 100;
 
-  // Base chances at level 1:
+  // Base chances at level 0:
   // Poor: 60%, Normal: 35%, Good: 4%, Excellent: 0.9%, Masterwork: 0.1%
 
   // At level 100:
   // Poor: 0%, Normal: 20%, Good: 50%, Excellent: 25%, Masterwork: 5%
 
   // Interpolate based on skill level
-  const t = (skillLevel - 1) / 99; // 0 at level 1, 1 at level 100
+  const t = skillLevel / 100; // 0 at level 0, 1 at level 100
 
   // Thresholds for each quality (cumulative)
   const poorThreshold = 60 * (1 - t); // 60 -> 0

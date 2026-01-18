@@ -27,5 +27,6 @@ export function createPlayer(): Actor {
     damage: PLAYER_DAMAGE,
     actions: initialPlayerActions,
     stats: STARTING_STATS,
+    level: 0,
   });
 }
