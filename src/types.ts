@@ -27,11 +27,11 @@ export interface ActionResult {
 export type StatType =
   | 'vitality' // +5 max HP per point
   | 'strength' // +1 melee damage, synergy with agility
-  | 'agility' // +2% dodge, +2 speed, synergy with strength/precision
-  | 'precision' // +2% hit chance, +1 ranged damage
+  | 'agility' // +5 dodge rating, +2 speed, +3 attack rating
+  | 'precision' // +5 attack rating, +1 ranged damage
   | 'endurance' // +1 max saturation, reduces hunger decay
   | 'arcane' // Magic capacity (future)
-  | 'luck'; // Affects crits, loot, random events
+  | 'luck'; // +2 dodge rating, crits, loot
 
 export type Stats = Record<StatType, number>;
 
@@ -87,6 +87,9 @@ export interface ItemDef {
   damageBonus?: number;
   armorBonus?: number; // Reduces damage taken
   rangedBonus?: number; // Bonus vs fleeing enemies, reduces damage taken
+  accuracy?: number; // Weapon accuracy bonus/penalty to attack rating
+  dodgePenalty?: number; // Armor penalty to dodge rating (heavy armor)
+  blockBonus?: number; // Shield block rating bonus
 }
 
 // Resource node definitions (things you can find and gather from)

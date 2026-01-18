@@ -163,18 +163,70 @@ export function getRangedDamageBonus(stats: Stats): number {
   return base + synergy;
 }
 
-// Hit chance: base 80% + precision*2% + agility*0.5% + luck*0.5%
-export function getHitChance(stats: Stats): number {
-  const base = 0.80;
-  const bonus = stats.precision * 0.02 + stats.agility * 0.005 + stats.luck * 0.005;
-  return Math.min(0.99, base + bonus); // Cap at 99%
+// Attack Rating: precision*5 + agility*3 + level*2 + weaponAccuracy
+export function getAttackRating(stats: Stats, level: number, weaponAccuracy: number = 0): number {
+  return stats.precision * 5 + stats.agility * 3 + level * 2 + weaponAccuracy + 10; // +10 base
 }
 
-// Dodge chance: base 5% + agility*2% + luck*0.5%
+// Dodge Rating: agility*5 + luck*2 + level*2 - armorPenalty
+export function getDodgeRating(stats: Stats, level: number, armorPenalty: number = 0): number {
+  return Math.max(0, stats.agility * 5 + stats.luck * 2 + level * 2 + 10 - armorPenalty); // +10 base
+}
+
+// Block Rating: strength*3 + agility*2 + shieldBonus
+// Blocking is for shields - higher chance than dodge but reduces damage instead of avoiding
+export function getBlockRating(stats: Stats, level: number, shieldBlockBonus: number = 0): number {
+  if (shieldBlockBonus === 0) return 0; // No shield = can't block
+  return stats.strength * 3 + stats.agility * 2 + level * 2 + shieldBlockBonus;
+}
+
+// Block damage reduction: strength * 2 + shieldArmor
+// Returns the flat damage reduction when blocking
+export function getBlockDamageReduction(stats: Stats, shieldArmor: number = 0): number {
+  return stats.strength * 2 + shieldArmor;
+}
+
+// Calculate block chance: similar formula to hit chance but separate from dodge
+export function calculateBlockChance(blockRating: number, attackerAR: number): number {
+  if (blockRating === 0) return 0;
+  // Block is easier than dodge (more reliable with shield)
+  const blockChance = blockRating / (blockRating + attackerAR * 0.7);
+  return Math.max(0, Math.min(0.75, blockChance)); // Cap at 75%
+}
+
+// Hit chance formula (D2-style): AR / (AR + DR) * levelFactor
+// Clamped between 5% and 95%
+export function calculateHitChance(
+  attackerAR: number,
+  defenderDR: number,
+  attackerLevel: number,
+  defenderLevel: number
+): number {
+  // Level factor: 2 * alvl / (alvl + dlvl)
+  // This gives 1.0 when levels equal, higher when attacker > defender
+  const levelFactor = (2 * attackerLevel) / (attackerLevel + defenderLevel);
+
+  // Base AR vs DR calculation
+  const baseChance = attackerAR / (attackerAR + defenderDR);
+
+  // Apply level factor
+  const hitChance = baseChance * levelFactor;
+
+  // Clamp between 5% and 95%
+  return Math.max(0.05, Math.min(0.95, hitChance));
+}
+
+// Legacy functions for backward compatibility (will compute based on stats only)
+export function getHitChance(stats: Stats): number {
+  // Rough approximation when we don't have full context
+  const ar = getAttackRating(stats, 1, 0);
+  return Math.min(0.95, Math.max(0.05, ar / (ar + 20)));
+}
+
 export function getDodgeChance(stats: Stats): number {
-  const base = 0.05;
-  const bonus = stats.agility * 0.02 + stats.luck * 0.005;
-  return Math.min(0.50, base + bonus); // Cap at 50%
+  // Rough approximation when we don't have full context
+  const dr = getDodgeRating(stats, 1, 0);
+  return Math.min(0.50, Math.max(0.05, dr / (dr + 40)));
 }
 
 // Speed bonus: agility * 2
@@ -217,50 +269,43 @@ export function getMagicCapacity(stats: Stats): number {
 export interface AttackResult {
   hit: boolean;
   dodged: boolean;
+  blocked: boolean;
   critical: boolean;
   damage: number;
   message: string;
+}
+
+export interface AttackOptions {
+  attackerWeaponAccuracy?: number;
+  defenderArmorPenalty?: number;
+  defenderBlockBonus?: number;
+  defenderShieldArmor?: number;
+  isRanged?: boolean;
 }
 
 export function calculateAttack(
   attacker: Actor,
   defender: Actor,
   baseDamage: number,
-  isRanged: boolean = false
+  options: AttackOptions = {}
 ): AttackResult {
+  const {
+    attackerWeaponAccuracy = 0,
+    defenderArmorPenalty = 0,
+    defenderBlockBonus = 0,
+    defenderShieldArmor = 0,
+    isRanged = false,
+  } = options;
+
   const attackerStats = attacker.levelInfo.stats;
   const defenderStats = defender.levelInfo.stats;
+  const attackerLevel = attacker.levelInfo.level;
+  const defenderLevel = defender.levelInfo.level;
 
-  // Roll hit vs dodge
-  const hitChance = getHitChance(attackerStats);
-  const dodgeChance = getDodgeChance(defenderStats);
+  // Calculate Attack Rating
+  const attackerAR = getAttackRating(attackerStats, attackerLevel, attackerWeaponAccuracy);
 
-  const hitRoll = Math.random();
-  const dodgeRoll = Math.random();
-
-  // Miss check
-  if (hitRoll > hitChance) {
-    return {
-      hit: false,
-      dodged: false,
-      critical: false,
-      damage: 0,
-      message: 'missed',
-    };
-  }
-
-  // Dodge check
-  if (dodgeRoll < dodgeChance) {
-    return {
-      hit: true,
-      dodged: true,
-      critical: false,
-      damage: 0,
-      message: 'dodged',
-    };
-  }
-
-  // Calculate damage
+  // Calculate damage first (needed for block calculations)
   let damage = baseDamage;
   if (isRanged) {
     damage += getRangedDamageBonus(attackerStats);
@@ -268,28 +313,64 @@ export function calculateAttack(
     damage += getMeleeDamageBonus(attackerStats);
   }
 
-  // Critical hit check
+  // Critical hit check (done early to apply to blocked damage too)
   const critChance = getCritChance(attackerStats);
   const isCritical = Math.random() < critChance;
-
   if (isCritical) {
     const critMult = getCritMultiplier(attackerStats);
     damage = Math.floor(damage * critMult);
+  }
+
+  // If defender has a shield, check for block first
+  // Block reduces damage but doesn't avoid it entirely
+  if (defenderBlockBonus > 0) {
+    const blockRating = getBlockRating(defenderStats, defenderLevel, defenderBlockBonus);
+    const blockChance = calculateBlockChance(blockRating, attackerAR);
+
+    if (Math.random() < blockChance) {
+      // Blocked! Reduce damage based on strength and shield armor
+      const blockReduction = getBlockDamageReduction(defenderStats, defenderShieldArmor);
+      const blockedDamage = Math.max(1, damage - blockReduction); // Minimum 1 damage
+      return {
+        hit: true,
+        dodged: false,
+        blocked: true,
+        critical: isCritical,
+        damage: blockedDamage,
+        message: isCritical ? 'blocked critical' : 'blocked',
+      };
+    }
+  }
+
+  // No shield or didn't block - check dodge
+  const defenderDR = getDodgeRating(defenderStats, defenderLevel, defenderArmorPenalty);
+  const hitChance = calculateHitChance(attackerAR, defenderDR, attackerLevel, defenderLevel);
+
+  // Roll for hit/dodge
+  const hitRoll = Math.random();
+
+  if (hitRoll > hitChance) {
+    // Miss or dodge - we combine them into one roll
+    // If close to hit chance, call it a dodge; if far, call it a miss
+    const isDodge = hitRoll < hitChance + 0.15;
     return {
-      hit: true,
-      dodged: false,
-      critical: true,
-      damage,
-      message: 'critical',
+      hit: false,
+      dodged: isDodge,
+      blocked: false,
+      critical: false,
+      damage: 0,
+      message: isDodge ? 'dodged' : 'missed',
     };
   }
 
+  // Hit landed
   return {
     hit: true,
     dodged: false,
-    critical: false,
+    blocked: false,
+    critical: isCritical,
     damage,
-    message: 'hit',
+    message: isCritical ? 'critical' : 'hit',
   };
 }
 
@@ -348,10 +429,10 @@ export const STAT_NAMES: Record<StatType, string> = {
 
 export const STAT_DESCRIPTIONS: Record<StatType, string> = {
   vitality: '+5 Max HP per point',
-  strength: '+1 Melee damage, synergy with Agility',
-  agility: '+2% Dodge, +2 Speed, synergies with damage stats',
-  precision: '+2% Hit chance, +1 Ranged damage',
+  strength: '+1 Melee damage, +3 Block Rating, block damage reduction',
+  agility: '+5 Dodge Rating, +3 Attack Rating, +2 Speed',
+  precision: '+5 Attack Rating, +1 Ranged damage',
   endurance: '+1 Max Saturation, reduces hunger decay',
   arcane: 'Magic capacity (future)',
-  luck: 'Crit chance, loot bonus, random events',
+  luck: '+2 Dodge Rating, crit chance, loot bonus',
 };

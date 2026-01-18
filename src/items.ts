@@ -21,6 +21,7 @@ export const items: Record<string, ItemDef> = {
     weight: 0.5,
     equipSlot: 'mainHand',
     damageBonus: 2,
+    accuracy: 0, // Baseline
   },
   rocks: {
     id: 'rocks',
@@ -105,6 +106,7 @@ export const items: Record<string, ItemDef> = {
     weight: 1.0,
     equipSlot: 'mainHand',
     damageBonus: 5,
+    accuracy: 15, // Fast, easy to land hits
   },
   stoneSpear: {
     id: 'stoneSpear',
@@ -115,6 +117,7 @@ export const items: Record<string, ItemDef> = {
     weight: 2.5,
     equipSlot: 'mainHand',
     damageBonus: 8,
+    accuracy: 5, // Reach helps, but slower
   },
   bow: {
     id: 'bow',
@@ -127,21 +130,23 @@ export const items: Record<string, ItemDef> = {
     twoHanded: true,
     damageBonus: 6,
     rangedBonus: 15, // Bonus vs fleeing, reduces incoming damage
+    accuracy: 20, // Ranged precision weapon
   },
 
   // Shields
   woodenShield: {
     id: 'woodenShield',
     name: 'Wooden Shield',
-    description: 'A crude wooden shield. Provides some protection.',
+    description: 'A crude wooden shield. Block attacks to reduce damage.',
     stackable: false,
     tags: ['armor', 'shield', 'crafted'],
     weight: 3.0,
     equipSlot: 'offHand',
     armorBonus: 5,
+    blockBonus: 25, // Block rating bonus
   },
 
-  // Armor - Leather set
+  // Armor - Leather set (light armor, minimal dodge penalty)
   leatherHelm: {
     id: 'leatherHelm',
     name: 'Leather Helm',
@@ -151,6 +156,7 @@ export const items: Record<string, ItemDef> = {
     weight: 1.0,
     equipSlot: 'head',
     armorBonus: 3,
+    dodgePenalty: 2,
   },
   leatherChest: {
     id: 'leatherChest',
@@ -161,6 +167,7 @@ export const items: Record<string, ItemDef> = {
     weight: 3.0,
     equipSlot: 'chest',
     armorBonus: 6,
+    dodgePenalty: 5,
   },
   leatherLegs: {
     id: 'leatherLegs',
@@ -171,6 +178,7 @@ export const items: Record<string, ItemDef> = {
     weight: 2.0,
     equipSlot: 'legs',
     armorBonus: 4,
+    dodgePenalty: 3,
   },
   leatherBoots: {
     id: 'leatherBoots',
@@ -181,6 +189,7 @@ export const items: Record<string, ItemDef> = {
     weight: 1.5,
     equipSlot: 'feet',
     armorBonus: 2,
+    dodgePenalty: 1,
   },
 
   // Structures (portable)

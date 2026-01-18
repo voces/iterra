@@ -351,3 +351,53 @@ export function applyArmor(damage: number, armor: number): number {
   const reduction = armor / (armor + 20);
   return Math.max(1, Math.floor(damage * (1 - reduction)));
 }
+
+// Get weapon accuracy bonus for AR calculation
+export function getWeaponAccuracy(actor: Actor): number {
+  const mainHandId = actor.equipment.mainHand;
+  if (!mainHandId) return 0;
+
+  const item = getItem(mainHandId);
+  return item?.accuracy ?? 0;
+}
+
+// Get total armor dodge penalty
+export function getArmorDodgePenalty(actor: Actor): number {
+  let penalty = 0;
+  const counted = new Set<string>();
+
+  for (const itemId of Object.values(actor.equipment)) {
+    if (itemId && !counted.has(itemId)) {
+      counted.add(itemId);
+      const item = getItem(itemId);
+      if (item?.dodgePenalty) {
+        penalty += item.dodgePenalty;
+      }
+    }
+  }
+
+  return penalty;
+}
+
+// Get shield block bonus (0 if no shield)
+export function getShieldBlockBonus(actor: Actor): number {
+  const offHandId = actor.equipment.offHand;
+  if (!offHandId) return 0;
+
+  const item = getItem(offHandId);
+  // Only count as shield if it has blockBonus
+  return item?.blockBonus ?? 0;
+}
+
+// Get shield armor value for block damage reduction
+export function getShieldArmor(actor: Actor): number {
+  const offHandId = actor.equipment.offHand;
+  if (!offHandId) return 0;
+
+  const item = getItem(offHandId);
+  // Shield armor used for block reduction
+  if (item?.blockBonus) {
+    return item.armorBonus ?? 0;
+  }
+  return 0;
+}

@@ -8,14 +8,12 @@ import {
   getEquipmentArmorBonus,
   getEquipmentRangedBonus,
   applyArmor,
+  getWeaponAccuracy,
+  getArmorDodgePenalty,
+  getShieldBlockBonus,
+  getShieldArmor,
 } from './actor.ts';
-import {
-  getHitChance,
-  getDodgeChance,
-  getCritChance,
-  getCritMultiplier,
-  getMeleeDamageBonus,
-} from './stats.ts';
+import { calculateAttack } from './stats.ts';
 
 export function createEncounter(enemy?: Actor, playerLevel: number = 1): Encounter {
   return {
@@ -82,47 +80,71 @@ export function getEnemyAction(
 
 function enemyAttack(encounter: Encounter, player: Actor): EnemyAction {
   const enemy = encounter.enemy;
-  const enemyStats = enemy.levelInfo.stats;
-  const playerStats = player.levelInfo.stats;
+  const baseDamage = enemy.damage;
 
-  // Hit check
-  const hitChance = getHitChance(enemyStats);
-  if (Math.random() > hitChance) {
+  // Get enemy weapon accuracy (enemies usually have none)
+  const enemyWeaponAccuracy = getWeaponAccuracy(enemy);
+
+  // Get player's defensive stats
+  const playerDodgePenalty = getArmorDodgePenalty(player);
+  const playerBlockBonus = getShieldBlockBonus(player);
+  const playerShieldArmor = getShieldArmor(player);
+
+  // Use new AR vs DR combat system with blocking support
+  const result = calculateAttack(enemy, player, baseDamage, {
+    attackerWeaponAccuracy: enemyWeaponAccuracy,
+    defenderArmorPenalty: playerDodgePenalty,
+    defenderBlockBonus: playerBlockBonus,
+    defenderShieldArmor: playerShieldArmor,
+    isRanged: false,
+  });
+
+  // Miss
+  if (!result.hit && !result.blocked) {
+    const msg = result.dodged
+      ? `You dodge the ${enemy.name}'s attack!`
+      : `The ${enemy.name} attacks but misses!`;
     return {
       type: 'attack',
-      message: `The ${enemy.name} attacks but misses!`,
+      message: msg,
       damage: 0,
     };
   }
 
-  // Dodge check
-  const dodgeChance = getDodgeChance(playerStats);
-  if (Math.random() < dodgeChance) {
+  // Blocked (still takes some damage)
+  if (result.blocked) {
+    const playerArmor = getEquipmentArmorBonus(player);
+    const playerRanged = getEquipmentRangedBonus(player);
+    const effectiveArmor = playerArmor + Math.floor(playerRanged / 3);
+    const damage = applyArmor(result.damage, effectiveArmor);
+    dealDamage(player, damage);
+
+    const critText = result.critical ? ' (crit blocked!)' : '';
+
+    if (!isAlive(player)) {
+      return {
+        type: 'attack',
+        message: `You block the ${enemy.name}'s attack but take ${damage} damage.${critText} You have been defeated!`,
+        damage,
+        encounterEnded: true,
+      };
+    }
+
     return {
       type: 'attack',
-      message: `You dodge the ${enemy.name}'s attack!`,
-      damage: 0,
+      message: `You block the ${enemy.name}'s attack, taking ${damage} damage.${critText} (${player.health}/${player.maxHealth} HP)`,
+      damage,
     };
   }
 
-  // Calculate damage
-  let baseDamage = enemy.damage + getMeleeDamageBonus(enemyStats);
-
-  // Critical hit check
-  const critChance = getCritChance(enemyStats);
-  const isCrit = Math.random() < critChance;
-  if (isCrit) {
-    baseDamage = Math.floor(baseDamage * getCritMultiplier(enemyStats));
-  }
-
-  // Apply armor reduction
+  // Hit landed
   const playerArmor = getEquipmentArmorBonus(player);
   const playerRanged = getEquipmentRangedBonus(player);
   const effectiveArmor = playerArmor + Math.floor(playerRanged / 3);
-  const damage = applyArmor(baseDamage, effectiveArmor);
+  const damage = applyArmor(result.damage, effectiveArmor);
   dealDamage(player, damage);
 
-  const critText = isCrit ? ' Critical hit!' : '';
+  const critText = result.critical ? ' Critical hit!' : '';
 
   if (!isAlive(player)) {
     return {
