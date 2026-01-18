@@ -270,17 +270,12 @@ export class Game {
       this.state.availableNodes[nodeId] = count - 1;
       if (this.state.availableNodes[nodeId] <= 0) {
         delete this.state.availableNodes[nodeId];
-        this.log(`The last ${node.name.toLowerCase()} is now depleted.`);
-      } else {
-        this.log(`A ${node.name.toLowerCase()} is now depleted. (${this.state.availableNodes[nodeId]} remaining)`);
       }
     }
   }
 
   private processNodeDropOff(): void {
     // Each node instance has a chance to drop off when wandering
-    const nodesToRemove: { nodeId: string; count: number }[] = [];
-
     for (const [nodeId, count] of Object.entries(this.state.availableNodes)) {
       if (count <= 0) continue;
 
@@ -296,25 +291,11 @@ export class Game {
       }
 
       if (lost > 0) {
-        nodesToRemove.push({ nodeId, count: lost });
-      }
-    }
-
-    // Apply removals
-    for (const { nodeId, count } of nodesToRemove) {
-      const node = getResourceNode(nodeId);
-      const current = this.state.availableNodes[nodeId] ?? 0;
-      const newCount = current - count;
-
-      if (newCount <= 0) {
-        delete this.state.availableNodes[nodeId];
-        this.log(`You've lost track of the ${node?.name.toLowerCase()}.`);
-      } else {
-        this.state.availableNodes[nodeId] = newCount;
-        if (count === 1) {
-          this.log(`You've lost track of a ${node?.name.toLowerCase()}. (${newCount} remaining)`);
+        const newCount = count - lost;
+        if (newCount <= 0) {
+          delete this.state.availableNodes[nodeId];
         } else {
-          this.log(`You've lost track of ${count} ${node?.name.toLowerCase()}s. (${newCount} remaining)`);
+          this.state.availableNodes[nodeId] = newCount;
         }
       }
     }
