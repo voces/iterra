@@ -1,4 +1,4 @@
-import type { Actor, Action, Inventory } from './types.ts';
+import type { Actor, Action, Inventory, Equipment, EquipSlot } from './types.ts';
 
 export function createActor(
   id: string,
@@ -12,6 +12,7 @@ export function createActor(
     saturation?: number;
     maxSaturation?: number;
     inventory?: Inventory;
+    equipment?: Equipment;
     actions?: Action[];
   } = {}
 ): Actor {
@@ -24,6 +25,7 @@ export function createActor(
     saturation = 10, // Start at nominal max
     maxSaturation = 20, // Can store extra for healing
     inventory = {},
+    equipment = {},
     actions = [],
   } = options;
 
@@ -40,6 +42,7 @@ export function createActor(
     saturation,
     maxSaturation,
     inventory: { ...inventory },
+    equipment: { ...equipment },
     actions: [...actions],
   };
 }
@@ -181,4 +184,132 @@ export function getSpeedModifier(actor: Actor): number {
 
 export function getEffectiveSpeed(actor: Actor): number {
   return Math.max(10, actor.speed + getSpeedModifier(actor)); // Min speed of 10
+}
+
+// Equipment helpers
+export function getEquippedItem(actor: Actor, slot: EquipSlot): string | undefined {
+  return actor.equipment[slot];
+}
+
+export function equipItem(actor: Actor, itemId: string, slot: EquipSlot): boolean {
+  const item = getItem(itemId);
+  if (!item || !item.equipSlot) return false;
+
+  // Check if we have the item in inventory
+  if (getItemCount(actor, itemId) <= 0) return false;
+
+  // Handle two-handed weapons
+  if (item.twoHanded) {
+    // Unequip both hands first
+    unequipSlot(actor, 'mainHand');
+    unequipSlot(actor, 'offHand');
+    actor.equipment.mainHand = itemId;
+    actor.equipment.offHand = itemId; // Both slots point to same item
+  } else {
+    // Unequip existing item in slot
+    unequipSlot(actor, slot);
+    actor.equipment[slot] = itemId;
+  }
+
+  // Remove from inventory (equipped items don't count as inventory)
+  removeItem(actor, itemId, 1);
+  return true;
+}
+
+export function unequipSlot(actor: Actor, slot: EquipSlot): boolean {
+  const itemId = actor.equipment[slot];
+  if (!itemId) return false;
+
+  const item = getItem(itemId);
+
+  // Handle two-handed weapons - only add to inventory once
+  if (item?.twoHanded && slot === 'mainHand') {
+    delete actor.equipment.mainHand;
+    delete actor.equipment.offHand;
+    addItem(actor, itemId, 1);
+  } else if (item?.twoHanded && slot === 'offHand') {
+    // Already handled by mainHand unequip
+    delete actor.equipment.mainHand;
+    delete actor.equipment.offHand;
+    addItem(actor, itemId, 1);
+  } else {
+    delete actor.equipment[slot];
+    addItem(actor, itemId, 1);
+  }
+
+  return true;
+}
+
+export function canEquipInSlot(itemId: string, slot: EquipSlot): boolean {
+  const item = getItem(itemId);
+  if (!item || !item.equipSlot) return false;
+
+  if (item.twoHanded) {
+    return slot === 'mainHand' || slot === 'offHand';
+  }
+
+  return item.equipSlot === slot;
+}
+
+// Get total equipment bonuses
+export function getEquipmentDamageBonus(actor: Actor): number {
+  let bonus = 0;
+  const counted = new Set<string>();
+
+  for (const itemId of Object.values(actor.equipment)) {
+    if (itemId && !counted.has(itemId)) {
+      counted.add(itemId);
+      const item = getItem(itemId);
+      if (item?.damageBonus) {
+        bonus += item.damageBonus;
+      }
+    }
+  }
+
+  return bonus;
+}
+
+export function getEquipmentArmorBonus(actor: Actor): number {
+  let bonus = 0;
+  const counted = new Set<string>();
+
+  for (const itemId of Object.values(actor.equipment)) {
+    if (itemId && !counted.has(itemId)) {
+      counted.add(itemId);
+      const item = getItem(itemId);
+      if (item?.armorBonus) {
+        bonus += item.armorBonus;
+      }
+    }
+  }
+
+  return bonus;
+}
+
+export function getEquipmentRangedBonus(actor: Actor): number {
+  let bonus = 0;
+  const counted = new Set<string>();
+
+  for (const itemId of Object.values(actor.equipment)) {
+    if (itemId && !counted.has(itemId)) {
+      counted.add(itemId);
+      const item = getItem(itemId);
+      if (item?.rangedBonus) {
+        bonus += item.rangedBonus;
+      }
+    }
+  }
+
+  return bonus;
+}
+
+export function getEffectiveDamage(actor: Actor): number {
+  return actor.damage + getEquipmentDamageBonus(actor);
+}
+
+// Reduces incoming damage based on armor
+export function applyArmor(damage: number, armor: number): number {
+  // Each point of armor reduces damage by ~5%, diminishing returns
+  const reduction = armor / (armor + 20);
+  return Math.max(1, Math.floor(damage * (1 - reduction)));
 }

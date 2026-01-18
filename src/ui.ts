@@ -1,6 +1,13 @@
-import type { Action } from './types.ts';
+import type { Action, EquipSlot } from './types.ts';
 import type { Game } from './game.ts';
-import { canAffordAction, getTotalWeight, getSpeedModifier } from './actor.ts';
+import {
+  canAffordAction,
+  getTotalWeight,
+  getSpeedModifier,
+  getEquipmentDamageBonus,
+  getEquipmentArmorBonus,
+  getEquipmentRangedBonus,
+} from './actor.ts';
 import { getItem } from './items.ts';
 
 export class UI {
@@ -14,6 +21,7 @@ export class UI {
     maxSaturation: HTMLElement;
     weightCount: HTMLElement;
     maxWeight: HTMLElement;
+    equipmentList: HTMLElement;
     inventoryList: HTMLElement;
     structuresPanel: HTMLElement;
     structuresList: HTMLElement;
@@ -44,6 +52,7 @@ export class UI {
       maxSaturation: document.getElementById('max-saturation')!,
       weightCount: document.getElementById('weight-count')!,
       maxWeight: document.getElementById('max-weight')!,
+      equipmentList: document.getElementById('equipment-list')!,
       inventoryList: document.getElementById('inventory-list')!,
       structuresPanel: document.getElementById('structures-panel')!,
       structuresList: document.getElementById('structures-list')!,
@@ -102,6 +111,7 @@ export class UI {
   private subscribeToGame(): void {
     this.game.on('turn', () => {
       this.renderStatus();
+      this.renderEquipment();
       this.renderInventory();
       this.renderStructures();
       this.renderEncounter();
@@ -128,6 +138,7 @@ export class UI {
 
   render(): void {
     this.renderStatus();
+    this.renderEquipment();
     this.renderInventory();
     this.renderStructures();
     this.renderEncounter();
@@ -153,19 +164,96 @@ export class UI {
     this.elements.maxWeight.textContent = `${player.carryCapacity} (${speedIndicator}${Math.round(speedMod)} spd)`;
   }
 
+  private renderEquipment(): void {
+    const player = this.game.state.player;
+    const equipment = player.equipment;
+    const inCombat = this.game.state.encounter !== null;
+
+    const slots: { slot: EquipSlot; label: string }[] = [
+      { slot: 'mainHand', label: 'Main Hand' },
+      { slot: 'offHand', label: 'Off Hand' },
+      { slot: 'head', label: 'Head' },
+      { slot: 'chest', label: 'Chest' },
+      { slot: 'legs', label: 'Legs' },
+      { slot: 'feet', label: 'Feet' },
+    ];
+
+    // Get total bonuses for display
+    const dmgBonus = getEquipmentDamageBonus(player);
+    const armorBonus = getEquipmentArmorBonus(player);
+    const rangedBonus = getEquipmentRangedBonus(player);
+
+    const bonusDisplay = [];
+    if (dmgBonus > 0) bonusDisplay.push(`+${dmgBonus} Dmg`);
+    if (armorBonus > 0) bonusDisplay.push(`+${armorBonus} Armor`);
+    if (rangedBonus > 0) bonusDisplay.push(`+${rangedBonus} Ranged`);
+
+    let html = '';
+
+    if (bonusDisplay.length > 0) {
+      html += `<div class="equipment-bonuses">${bonusDisplay.join(' | ')}</div>`;
+    }
+
+    // Track two-handed items to avoid showing them twice
+    const twoHandedItem = equipment.mainHand && equipment.mainHand === equipment.offHand
+      ? equipment.mainHand
+      : null;
+
+    for (const { slot, label } of slots) {
+      const itemId = equipment[slot];
+
+      // Skip offHand display for two-handed weapons
+      if (slot === 'offHand' && twoHandedItem) {
+        continue;
+      }
+
+      const item = itemId ? getItem(itemId) : null;
+      const itemName = item?.name ?? 'Empty';
+      const isTwoHanded = item?.twoHanded;
+
+      const slotLabel = isTwoHanded ? 'Both Hands' : label;
+
+      html += `
+        <div class="equipment-slot">
+          <span class="slot-label">${slotLabel}:</span>
+          <span class="slot-item">${itemName}</span>
+          ${itemId && !inCombat ? `<button class="unequip-btn" data-slot="${slot}" title="Unequip">×</button>` : ''}
+        </div>
+      `;
+    }
+
+    this.elements.equipmentList.innerHTML = html;
+
+    // Add unequip button listeners
+    this.elements.equipmentList.querySelectorAll('.unequip-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const slot = (e.target as HTMLElement).getAttribute('data-slot') as EquipSlot;
+        if (slot) {
+          this.game.unequip(slot);
+        }
+      });
+    });
+  }
+
   private renderInventory(): void {
     const player = this.game.state.player;
     const inventory = player.inventory;
+    const inCombat = this.game.state.encounter !== null;
 
     const items = Object.entries(inventory)
       .filter(([_, count]) => count > 0)
       .map(([itemId, count]) => {
         const item = getItem(itemId);
         const name = item?.name ?? itemId;
+        const canEquip = item?.equipSlot && !inCombat;
+
         return `
           <div class="inventory-item">
             <span class="item-name">${name}: <span class="item-count">${count}</span></span>
-            <button class="drop-btn" data-item-id="${itemId}" title="Drop 1">-</button>
+            <div class="item-actions">
+              ${canEquip ? `<button class="equip-btn" data-item-id="${itemId}" data-slot="${item.equipSlot}" title="Equip">E</button>` : ''}
+              <button class="drop-btn" data-item-id="${itemId}" title="Drop 1">-</button>
+            </div>
           </div>
         `;
       });
@@ -174,6 +262,17 @@ export class UI {
       this.elements.inventoryList.innerHTML = '<span class="inventory-empty">Empty</span>';
     } else {
       this.elements.inventoryList.innerHTML = items.join('');
+
+      // Add equip button listeners
+      this.elements.inventoryList.querySelectorAll('.equip-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
+          const slot = (e.target as HTMLElement).getAttribute('data-slot') as EquipSlot;
+          if (itemId && slot) {
+            this.game.equip(itemId, slot);
+          }
+        });
+      });
 
       // Add drop button listeners
       this.elements.inventoryList.querySelectorAll('.drop-btn').forEach((btn) => {

@@ -102,6 +102,62 @@ section h2 {
   display: none !important;
 }
 
+/* Equipment Panel */
+#equipment-panel {
+  border-left: 3px solid var(--accent);
+}
+
+#equipment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.equipment-bonuses {
+  color: var(--success);
+  font-weight: 500;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.equipment-slot {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.slot-label {
+  color: var(--text-secondary);
+  min-width: 80px;
+}
+
+.slot-item {
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.unequip-btn {
+  padding: 0.1rem 0.4rem;
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: var(--warning);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.unequip-btn:hover {
+  background: var(--warning);
+  color: var(--bg-primary);
+  border-color: var(--warning);
+}
+
 /* Inventory Panel */
 #inventory-panel {
   border-left: 3px solid var(--warning);
@@ -132,7 +188,12 @@ section h2 {
   font-weight: bold;
 }
 
-.drop-btn, .take-btn {
+.item-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.drop-btn, .take-btn, .equip-btn {
   padding: 0.1rem 0.4rem;
   font-size: 0.9rem;
   font-weight: bold;
@@ -162,6 +223,17 @@ section h2 {
   background: var(--success);
   color: var(--bg-primary);
   border-color: var(--success);
+}
+
+.equip-btn {
+  color: var(--accent);
+  background: transparent;
+}
+
+.equip-btn:hover {
+  background: var(--accent);
+  color: var(--text-primary);
+  border-color: var(--accent);
 }
 
 .inventory-empty {

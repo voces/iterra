@@ -13,7 +13,10 @@ import {
   drainSaturation,
   addItem,
   getItemCount,
+  equipItem,
+  unequipSlot,
 } from './actor.ts';
+import type { EquipSlot } from './types.ts';
 import {
   createEncounter,
   processEnemyTurn,
@@ -232,6 +235,7 @@ export class Game {
       'gather-berries': 'berryBush',
       'gather-sticks': 'fallenBranches',
       'gather-rocks': 'rockyOutcrop',
+      'gather-fiber': 'tallGrass',
     };
 
     const nodeId = actionToNode[actionId];
@@ -401,6 +405,53 @@ export class Game {
     return true;
   }
 
+  equip(itemId: string, slot: EquipSlot): boolean {
+    if (this.state.encounter) {
+      this.log("Can't change equipment during combat!");
+      return false;
+    }
+
+    const player = this.state.player;
+    const item = getItem(itemId);
+
+    if (!item) {
+      return false;
+    }
+
+    if (equipItem(player, itemId, slot)) {
+      this.log(`Equipped ${item.name}.`);
+      this.emit('turn');
+      return true;
+    }
+
+    this.log(`Cannot equip ${item.name}.`);
+    return false;
+  }
+
+  unequip(slot: EquipSlot): boolean {
+    if (this.state.encounter) {
+      this.log("Can't change equipment during combat!");
+      return false;
+    }
+
+    const player = this.state.player;
+    const itemId = player.equipment[slot];
+
+    if (!itemId) {
+      return false;
+    }
+
+    const item = getItem(itemId);
+
+    if (unequipSlot(player, slot)) {
+      this.log(`Unequipped ${item?.name ?? itemId}.`);
+      this.emit('turn');
+      return true;
+    }
+
+    return false;
+  }
+
   log(message: string): void {
     const entry: LogEntry = {
       turn: this.state.turn,
@@ -441,6 +492,7 @@ export class Game {
       'gather-berries': 'berryBush',
       'gather-sticks': 'fallenBranches',
       'gather-rocks': 'rockyOutcrop',
+      'gather-fiber': 'tallGrass',
     };
 
     // Map consumption actions to their required items
@@ -515,6 +567,16 @@ export class Game {
               return false;
             }
           }
+        }
+      }
+
+      // Check combat action requirements
+      if (action.id === 'throw-rock' && getItemCount(player, 'rocks') <= 0) {
+        return false;
+      }
+      if (action.id === 'ranged-attack') {
+        if (player.equipment.mainHand !== 'bow' || getItemCount(player, 'arrow') <= 0) {
+          return false;
         }
       }
 

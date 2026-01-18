@@ -24,6 +24,11 @@ export interface ActionResult {
 // Inventory is a flexible map of item IDs to quantities
 export type Inventory = Record<string, number>;
 
+// Equipment slots
+export type EquipSlot = 'mainHand' | 'offHand' | 'head' | 'chest' | 'legs' | 'feet';
+
+export type Equipment = Partial<Record<EquipSlot, string>>; // slot -> itemId
+
 export interface LootTable {
   [itemId: string]: { min: number; max: number; chance: number };
 }
@@ -40,6 +45,12 @@ export interface ItemDef {
   // Consumable properties
   saturationGain?: number;
   healthGain?: number;
+  // Equipment properties
+  equipSlot?: EquipSlot;
+  twoHanded?: boolean; // Takes both hand slots
+  damageBonus?: number;
+  armorBonus?: number; // Reduces damage taken
+  rangedBonus?: number; // Bonus vs fleeing enemies, reduces damage taken
 }
 
 // Resource node definitions (things you can find and gather from)
@@ -81,10 +92,11 @@ export interface Actor {
   carryCapacity: number; // Max weight before penalties
   health: number;
   maxHealth: number;
-  damage: number;
+  damage: number; // Base damage
   saturation: number;
   maxSaturation: number;
   inventory: Inventory;
+  equipment: Equipment;
   actions: Action[];
 }
 

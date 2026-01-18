@@ -29,6 +29,15 @@ export const resourceNodes: Record<string, ResourceNodeDef> = {
     discoveryMessage: 'You notice some useful rocks nearby.',
     depletionChance: 0.4,
   },
+  tallGrass: {
+    id: 'tallGrass',
+    name: 'Tall Grass',
+    description: 'A patch of tall grass with useful fibers.',
+    gatherActionId: 'gather-fiber',
+    discoveryChance: 0.2,
+    discoveryMessage: 'You find a patch of tall grass.',
+    depletionChance: 0.5,
+  },
 };
 
 export function getResourceNode(id: string): ResourceNodeDef | undefined {

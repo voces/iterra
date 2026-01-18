@@ -1,6 +1,14 @@
 import type { Actor, Encounter, ActionResult } from './types.ts';
 import { getRandomEnemy, getEnemyTemplate } from './enemies.ts';
-import { dealDamage, isAlive, addTicks, getEffectiveSpeed } from './actor.ts';
+import {
+  dealDamage,
+  isAlive,
+  addTicks,
+  getEffectiveSpeed,
+  getEquipmentArmorBonus,
+  getEquipmentRangedBonus,
+  applyArmor,
+} from './actor.ts';
 
 export function createEncounter(enemy?: Actor): Encounter {
   return {
@@ -67,7 +75,12 @@ export function getEnemyAction(
 
 function enemyAttack(encounter: Encounter, player: Actor): EnemyAction {
   const enemy = encounter.enemy;
-  const damage = enemy.damage;
+  const baseDamage = enemy.damage;
+  const playerArmor = getEquipmentArmorBonus(player);
+  const playerRanged = getEquipmentRangedBonus(player);
+  // Ranged bonus provides some damage reduction (defensive awareness)
+  const effectiveArmor = playerArmor + Math.floor(playerRanged / 3);
+  const damage = applyArmor(baseDamage, effectiveArmor);
   dealDamage(player, damage);
 
   if (!isAlive(player)) {

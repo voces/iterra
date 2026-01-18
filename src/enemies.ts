@@ -24,6 +24,7 @@ export const enemyTemplates: EnemyTemplate[] = [
     aggressiveness: 0.6,
     loot: {
       rawMeat: { min: 1, max: 2, chance: 0.9 },
+      rawLeather: { min: 1, max: 2, chance: 0.7 },
     },
   },
   {
@@ -36,6 +37,7 @@ export const enemyTemplates: EnemyTemplate[] = [
     aggressiveness: 0.8,
     loot: {
       rawMeat: { min: 2, max: 4, chance: 1.0 },
+      rawLeather: { min: 1, max: 3, chance: 0.8 },
     },
   },
   {
@@ -48,6 +50,7 @@ export const enemyTemplates: EnemyTemplate[] = [
     aggressiveness: 0.4,
     loot: {
       rawMeat: { min: 1, max: 1, chance: 0.5 },
+      venomGland: { min: 1, max: 2, chance: 0.8 },
     },
   },
   {

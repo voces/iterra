@@ -15,18 +15,28 @@ export const items: Record<string, ItemDef> = {
   sticks: {
     id: 'sticks',
     name: 'Sticks',
-    description: 'Dry wooden sticks. Useful for crafting.',
+    description: 'Dry wooden sticks. Useful for crafting or as a makeshift weapon.',
     stackable: true,
-    tags: ['material', 'wood', 'foraged'],
+    tags: ['material', 'wood', 'foraged', 'weapon'],
     weight: 0.5,
+    equipSlot: 'mainHand',
+    damageBonus: 2,
   },
   rocks: {
     id: 'rocks',
     name: 'Rocks',
-    description: 'Sturdy rocks. Useful for crafting and building.',
+    description: 'Sturdy rocks. Can be thrown or used for crafting.',
     stackable: true,
-    tags: ['material', 'stone', 'foraged'],
+    tags: ['material', 'stone', 'foraged', 'throwable'],
     weight: 2.0,
+  },
+  fiber: {
+    id: 'fiber',
+    name: 'Fiber',
+    description: 'Plant fiber from tall grass. Used for crafting rope and bindings.',
+    stackable: true,
+    tags: ['material', 'foraged'],
+    weight: 0.2,
   },
 
   // Meat
@@ -47,6 +57,130 @@ export const items: Record<string, ItemDef> = {
     tags: ['food', 'cooked', 'meat'],
     weight: 1.0,
     saturationGain: 8,
+  },
+
+  // Enemy drops
+  rawLeather: {
+    id: 'rawLeather',
+    name: 'Raw Leather',
+    description: 'Untreated animal hide. Must be processed at a campfire with a knife.',
+    stackable: true,
+    tags: ['material', 'loot'],
+    weight: 2.0,
+  },
+  venomGland: {
+    id: 'venomGland',
+    name: 'Venom Gland',
+    description: 'A gland filled with potent venom. Handle with care.',
+    stackable: true,
+    tags: ['material', 'loot', 'poison'],
+    weight: 0.3,
+  },
+
+  // Crafted materials
+  leather: {
+    id: 'leather',
+    name: 'Leather',
+    description: 'Treated leather, ready for crafting armor.',
+    stackable: true,
+    tags: ['material', 'crafted'],
+    weight: 1.5,
+  },
+  arrow: {
+    id: 'arrow',
+    name: 'Arrow',
+    description: 'A simple arrow. Requires a bow to use.',
+    stackable: true,
+    tags: ['ammo', 'crafted'],
+    weight: 0.1,
+  },
+
+  // Weapons
+  stoneKnife: {
+    id: 'stoneKnife',
+    name: 'Stone Knife',
+    description: 'A sharp flint knife. Good for combat and processing leather.',
+    stackable: false,
+    tags: ['weapon', 'tool', 'crafted'],
+    weight: 1.0,
+    equipSlot: 'mainHand',
+    damageBonus: 5,
+  },
+  stoneSpear: {
+    id: 'stoneSpear',
+    name: 'Stone Spear',
+    description: 'A spear with a stone tip. Decent reach and damage.',
+    stackable: false,
+    tags: ['weapon', 'crafted'],
+    weight: 2.5,
+    equipSlot: 'mainHand',
+    damageBonus: 8,
+  },
+  bow: {
+    id: 'bow',
+    name: 'Bow',
+    description: 'A wooden bow. Requires arrows. Effective against fleeing enemies.',
+    stackable: false,
+    tags: ['weapon', 'ranged', 'crafted'],
+    weight: 1.5,
+    equipSlot: 'mainHand',
+    twoHanded: true,
+    damageBonus: 6,
+    rangedBonus: 15, // Bonus vs fleeing, reduces incoming damage
+  },
+
+  // Shields
+  woodenShield: {
+    id: 'woodenShield',
+    name: 'Wooden Shield',
+    description: 'A crude wooden shield. Provides some protection.',
+    stackable: false,
+    tags: ['armor', 'shield', 'crafted'],
+    weight: 3.0,
+    equipSlot: 'offHand',
+    armorBonus: 5,
+  },
+
+  // Armor - Leather set
+  leatherHelm: {
+    id: 'leatherHelm',
+    name: 'Leather Helm',
+    description: 'A hardened leather helmet.',
+    stackable: false,
+    tags: ['armor', 'crafted'],
+    weight: 1.0,
+    equipSlot: 'head',
+    armorBonus: 3,
+  },
+  leatherChest: {
+    id: 'leatherChest',
+    name: 'Leather Chest',
+    description: 'A leather chestpiece offering decent protection.',
+    stackable: false,
+    tags: ['armor', 'crafted'],
+    weight: 3.0,
+    equipSlot: 'chest',
+    armorBonus: 6,
+  },
+  leatherLegs: {
+    id: 'leatherLegs',
+    name: 'Leather Leggings',
+    description: 'Leather leg protection.',
+    stackable: false,
+    tags: ['armor', 'crafted'],
+    weight: 2.0,
+    equipSlot: 'legs',
+    armorBonus: 4,
+  },
+  leatherBoots: {
+    id: 'leatherBoots',
+    name: 'Leather Boots',
+    description: 'Sturdy leather boots.',
+    stackable: false,
+    tags: ['armor', 'crafted'],
+    weight: 1.5,
+    equipSlot: 'feet',
+    armorBonus: 2,
   },
 
   // Structures (portable)

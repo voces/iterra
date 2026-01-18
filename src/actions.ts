@@ -1,5 +1,17 @@
 import type { Action, Actor, ActionContext } from './types.ts';
-import { dealDamage, isAlive, addSaturation, addItem, removeItem, getItemCount, getEffectiveSpeed } from './actor.ts';
+import {
+  dealDamage,
+  isAlive,
+  addSaturation,
+  addItem,
+  removeItem,
+  getItemCount,
+  getEffectiveSpeed,
+  getEffectiveDamage,
+  getEquipmentRangedBonus,
+  getEquipmentArmorBonus,
+  applyArmor,
+} from './actor.ts';
 import { rollForResourceDiscovery, getResourceNode } from './resources.ts';
 import { getRecipe, canCraftRecipe, applyRecipe } from './recipes.ts';
 import { getItem } from './items.ts';
@@ -99,6 +111,23 @@ export const gatherRocks: Action = {
     return {
       success: true,
       message: `You gather ${amount} rocks. (${getItemCount(actor, 'rocks')} total)`,
+    };
+  },
+};
+
+export const gatherFiber: Action = {
+  id: 'gather-fiber',
+  name: 'Gather Fiber',
+  description: 'Collect fiber from tall grass.',
+  tickCost: 100,
+  tags: ['gathering', 'non-combat'],
+  execute: (actor: Actor, _context?: ActionContext) => {
+    const amount = 3 + Math.floor(Math.random() * 3); // 3-5 fiber
+    addItem(actor, 'fiber', amount);
+
+    return {
+      success: true,
+      message: `You gather ${amount} fiber. (${getItemCount(actor, 'fiber')} total)`,
     };
   },
 };
@@ -242,7 +271,7 @@ export const eatRawMeat = createEatAction('rawMeat', 'eat-raw-meat', 'Eat Raw Me
 export const attack: Action = {
   id: 'attack',
   name: 'Attack',
-  description: 'Strike your enemy.',
+  description: 'Strike your enemy with equipped weapon.',
   tickCost: 200,
   tags: ['combat', 'offensive'],
   execute: (actor: Actor, context?: ActionContext) => {
@@ -251,20 +280,111 @@ export const attack: Action = {
     }
 
     const enemy = context.encounter.enemy;
-    const damage = actor.damage;
-    dealDamage(enemy, damage);
+    const damage = getEffectiveDamage(actor);
+    const enemyArmor = getEquipmentArmorBonus(enemy);
+    const finalDamage = applyArmor(damage, enemyArmor);
+    dealDamage(enemy, finalDamage);
 
     if (!isAlive(enemy)) {
       return {
         success: true,
-        message: `You strike the ${enemy.name} for ${damage} damage, defeating it!`,
+        message: `You strike the ${enemy.name} for ${finalDamage} damage, defeating it!`,
         encounterEnded: true,
       };
     }
 
     return {
       success: true,
-      message: `You strike the ${enemy.name} for ${damage} damage. (${enemy.health}/${enemy.maxHealth} HP)`,
+      message: `You strike the ${enemy.name} for ${finalDamage} damage. (${enemy.health}/${enemy.maxHealth} HP)`,
+    };
+  },
+};
+
+export const throwRock: Action = {
+  id: 'throw-rock',
+  name: 'Throw Rock',
+  description: 'Throw a rock at your enemy. Ranged attack.',
+  tickCost: 150,
+  tags: ['combat', 'offensive', 'ranged'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    if (!context?.encounter) {
+      return { success: false, message: 'Nothing to throw at.' };
+    }
+
+    if (getItemCount(actor, 'rocks') <= 0) {
+      return { success: false, message: 'You have no rocks to throw.' };
+    }
+
+    removeItem(actor, 'rocks', 1);
+    const enemy = context.encounter.enemy;
+    const baseDamage = 8;
+    const rangedBonus = getEquipmentRangedBonus(actor);
+    const enemyArmor = getEquipmentArmorBonus(enemy);
+
+    // Ranged bonus adds damage vs fleeing enemies
+    const fleeingBonus = context.encounter.enemyFleeing ? Math.floor(rangedBonus / 2) : 0;
+    const damage = applyArmor(baseDamage + fleeingBonus, enemyArmor);
+    dealDamage(enemy, damage);
+
+    if (!isAlive(enemy)) {
+      return {
+        success: true,
+        message: `Your rock strikes the ${enemy.name} for ${damage} damage, defeating it!`,
+        encounterEnded: true,
+      };
+    }
+
+    return {
+      success: true,
+      message: `Your rock hits the ${enemy.name} for ${damage} damage. (${enemy.health}/${enemy.maxHealth} HP)`,
+    };
+  },
+};
+
+export const rangedAttack: Action = {
+  id: 'ranged-attack',
+  name: 'Shoot Arrow',
+  description: 'Fire an arrow at your enemy. Very effective against fleeing targets.',
+  tickCost: 180,
+  tags: ['combat', 'offensive', 'ranged'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    if (!context?.encounter) {
+      return { success: false, message: 'Nothing to shoot.' };
+    }
+
+    // Check for bow equipped
+    const mainHand = actor.equipment.mainHand;
+    if (mainHand !== 'bow') {
+      return { success: false, message: 'You need a bow equipped.' };
+    }
+
+    if (getItemCount(actor, 'arrow') <= 0) {
+      return { success: false, message: 'You have no arrows.' };
+    }
+
+    removeItem(actor, 'arrow', 1);
+    const enemy = context.encounter.enemy;
+    const baseDamage = getEffectiveDamage(actor);
+    const rangedBonus = getEquipmentRangedBonus(actor);
+    const enemyArmor = getEquipmentArmorBonus(enemy);
+
+    // Big bonus vs fleeing enemies
+    const fleeingBonus = context.encounter.enemyFleeing ? rangedBonus : 0;
+    const damage = applyArmor(baseDamage + fleeingBonus, enemyArmor);
+    dealDamage(enemy, damage);
+
+    if (!isAlive(enemy)) {
+      const fleeMsg = context.encounter.enemyFleeing ? ' as it flees' : '';
+      return {
+        success: true,
+        message: `Your arrow strikes the ${enemy.name}${fleeMsg} for ${damage} damage, defeating it!`,
+        encounterEnded: true,
+      };
+    }
+
+    return {
+      success: true,
+      message: `Your arrow hits the ${enemy.name} for ${damage} damage. (${enemy.health}/${enemy.maxHealth} HP)`,
     };
   },
 };
@@ -363,8 +483,8 @@ export const letGo: Action = {
 
 // === Action Collections ===
 
-export const combatActions: Action[] = [attack, flee, chase, letGo];
-export const gatheringActions: Action[] = [gatherBerries, gatherSticks, gatherRocks];
+export const combatActions: Action[] = [attack, throwRock, rangedAttack, flee, chase, letGo];
+export const gatheringActions: Action[] = [gatherBerries, gatherSticks, gatherRocks, gatherFiber];
 export const craftingActions: Action[] = [craftCampfire, placeCampfire, pickupCampfire, cookMeat];
 export const consumptionActions: Action[] = [eatBerries, eatCookedMeat, eatRawMeat];
 
@@ -386,6 +506,7 @@ export function getGatherAction(nodeId: string): Action | undefined {
     'gather-berries': gatherBerries,
     'gather-sticks': gatherSticks,
     'gather-rocks': gatherRocks,
+    'gather-fiber': gatherFiber,
   };
 
   return actionMap[node.gatherActionId];
