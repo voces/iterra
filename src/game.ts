@@ -6,7 +6,10 @@ import {
   addTicks,
   isAlive,
   isOverfull,
+  isStarving,
+  getStarvationDamage,
   heal,
+  dealDamage,
   drainSaturation,
 } from './actor.ts';
 import {
@@ -111,6 +114,9 @@ export class Game {
     // Health regeneration when overfull
     this.processRegen();
 
+    // Starvation damage when saturation too low
+    this.processStarvation();
+
     this.emit('turn');
     return true;
   }
@@ -124,6 +130,22 @@ export class Game {
       this.log(
         `You feel restored. (+${REGEN_AMOUNT} HP, ${player.health}/${player.maxHealth})`
       );
+    }
+  }
+
+  private processStarvation(): void {
+    const player = this.state.player;
+
+    if (isStarving(player)) {
+      const damage = getStarvationDamage(player);
+      dealDamage(player, damage);
+      this.log(
+        `You are starving! (-${damage} HP, ${player.health}/${player.maxHealth})`
+      );
+
+      if (!isAlive(player)) {
+        this.log('You have starved to death...');
+      }
     }
   }
 
