@@ -23,6 +23,8 @@ export class UI {
     enemyHealth: HTMLElement;
     enemyMaxHealth: HTMLElement;
     encounterStatus: HTMLElement;
+    gameOverPanel: HTMLElement;
+    restartButton: HTMLElement;
   };
 
   constructor(game: Game) {
@@ -45,6 +47,8 @@ export class UI {
       enemyHealth: document.getElementById('enemy-health')!,
       enemyMaxHealth: document.getElementById('enemy-max-health')!,
       encounterStatus: document.getElementById('encounter-status')!,
+      gameOverPanel: document.getElementById('game-over-panel')!,
+      restartButton: document.getElementById('restart-button')!,
     };
 
     this.setupEventListeners();
@@ -54,6 +58,12 @@ export class UI {
   private setupEventListeners(): void {
     this.elements.actionSearch.addEventListener('input', () => {
       this.renderActions();
+    });
+
+    this.elements.restartButton.addEventListener('click', () => {
+      this.game.restart();
+      this.elements.gameOverPanel.classList.add('hidden');
+      this.render();
     });
 
     document.addEventListener('keydown', (e) => {
@@ -86,6 +96,13 @@ export class UI {
       this.renderEncounter();
       this.renderActions();
     });
+    this.game.on('game-over', () => {
+      this.renderGameOver();
+    });
+  }
+
+  private renderGameOver(): void {
+    this.elements.gameOverPanel.classList.remove('hidden');
   }
 
   render(): void {

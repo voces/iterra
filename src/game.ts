@@ -24,7 +24,7 @@ import { getRandomEnemy, generateLoot } from './enemies.ts';
 import { getResourceNode } from './resources.ts';
 import { getItem } from './items.ts';
 
-export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end';
+export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end' | 'game-over';
 
 export type GameEventCallback = (game: Game) => void;
 
@@ -36,14 +36,25 @@ export class Game {
   private listeners: Map<GameEventType, Set<GameEventCallback>> = new Map();
 
   constructor() {
-    this.state = {
+    this.state = this.createInitialState();
+  }
+
+  private createInitialState(): GameState {
+    return {
       player: createPlayer(),
       turn: 0,
       log: [],
       encounter: null,
       availableNodes: new Set(),
       structures: new Set(),
+      gameOver: false,
     };
+  }
+
+  restart(): void {
+    this.state = this.createInitialState();
+    this.log('A new journey begins...');
+    this.emit('turn');
   }
 
   start(): void {
@@ -51,6 +62,11 @@ export class Game {
   }
 
   performAction(action: Action): boolean {
+    // Cannot act when dead
+    if (this.state.gameOver) {
+      return false;
+    }
+
     const player = this.state.player;
 
     // Check if action is allowed in current state
@@ -146,8 +162,15 @@ export class Game {
 
       if (!isAlive(player)) {
         this.log('You have starved to death...');
+        this.triggerGameOver();
       }
     }
+  }
+
+  private triggerGameOver(): void {
+    this.state.gameOver = true;
+    this.log('GAME OVER');
+    this.emit('game-over');
   }
 
   private processResourceDepletion(actionId: string): void {
@@ -171,7 +194,7 @@ export class Game {
   }
 
   private checkForEncounter(): void {
-    const encounterChance = 0.3;
+    const encounterChance = 0.2; // 20% when wandering without finding resources
     if (Math.random() < encounterChance) {
       this.startEncounter();
     }
@@ -222,7 +245,9 @@ export class Game {
         break;
       case 'defeat':
         this.log('You have been defeated...');
-        break;
+        this.state.encounter = null;
+        this.triggerGameOver();
+        return;
       case 'player_escaped':
         this.log('You escaped safely.');
         break;

@@ -101,6 +101,7 @@ export interface GameState {
   encounter: Encounter | null;
   availableNodes: Set<string>; // IDs of resource nodes currently available to gather
   structures: Set<string>; // IDs of structures the player has built
+  gameOver: boolean;
 }
 
 export interface LogEntry {
