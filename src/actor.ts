@@ -5,21 +5,17 @@ export function createActor(
   name: string,
   options: {
     maxTicks?: number;
-    tickRegenRate?: number;
     actions?: Action[];
   } = {}
 ): Actor {
-  const { maxTicks = 100, tickRegenRate = 0, actions = [] } = options;
+  const { maxTicks = 100, actions = [] } = options;
 
   return {
     id,
     name,
     ticks: maxTicks,
     maxTicks,
-    tickRegenRate,
     actions: [...actions],
-    currentAction: null,
-    actionProgress: 0,
   };
 }
 

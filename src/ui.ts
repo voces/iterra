@@ -6,9 +6,7 @@ export class UI {
   private game: Game;
   private elements: {
     tickCount: HTMLElement;
-    tickRate: HTMLElement;
-    currentAction: HTMLElement;
-    actionProgress: HTMLElement;
+    turnCount: HTMLElement;
     actionSearch: HTMLInputElement;
     actionsList: HTMLElement;
     gameLog: HTMLElement;
@@ -18,9 +16,7 @@ export class UI {
     this.game = game;
     this.elements = {
       tickCount: document.getElementById('tick-count')!,
-      tickRate: document.getElementById('tick-rate')!,
-      currentAction: document.getElementById('current-action')!,
-      actionProgress: document.getElementById('action-progress')!,
+      turnCount: document.getElementById('turn-count')!,
       actionSearch: document.getElementById('action-search') as HTMLInputElement,
       actionsList: document.getElementById('actions-list')!,
       gameLog: document.getElementById('game-log')!,
@@ -35,7 +31,6 @@ export class UI {
       this.renderActions();
     });
 
-    // Keyboard shortcut: focus search with /
     document.addEventListener('keydown', (e) => {
       if (e.key === '/' && document.activeElement !== this.elements.actionSearch) {
         e.preventDefault();
@@ -50,12 +45,7 @@ export class UI {
   }
 
   private subscribeToGame(): void {
-    this.game.on('tick', () => this.renderTicks());
-    this.game.on('action-start', () => {
-      this.renderStatus();
-      this.renderActions();
-    });
-    this.game.on('action-complete', () => {
+    this.game.on('turn', () => {
       this.renderStatus();
       this.renderActions();
     });
@@ -63,45 +53,25 @@ export class UI {
   }
 
   render(): void {
-    this.renderTicks();
     this.renderStatus();
     this.renderActions();
     this.renderLog();
   }
 
-  private renderTicks(): void {
-    const player = this.game.state.player;
-    this.elements.tickCount.textContent = Math.floor(player.ticks).toString();
-    this.elements.tickRate.textContent = player.tickRegenRate.toString();
-    this.renderActions(); // Re-render to update affordability
-    this.renderStatus(); // Update progress bar
-  }
-
   private renderStatus(): void {
     const player = this.game.state.player;
-
-    if (player.currentAction) {
-      this.elements.currentAction.textContent = player.currentAction.name;
-      const requiredTime = player.currentAction.tickCost * 0.5;
-      const progress = Math.min((player.actionProgress / requiredTime) * 100, 100);
-      this.elements.actionProgress.innerHTML = `<div class="bar" style="width: ${progress}%"></div>`;
-    } else {
-      this.elements.currentAction.textContent = 'Idle';
-      this.elements.actionProgress.innerHTML = '';
-    }
+    this.elements.tickCount.textContent = player.ticks.toString();
+    this.elements.turnCount.textContent = this.game.state.turn.toString();
   }
 
   private renderActions(): void {
     const query = this.elements.actionSearch.value;
     const actions = this.game.filterActions(query);
-    const player = this.game.state.player;
-    const hasCurrentAction = player.currentAction !== null;
 
     this.elements.actionsList.innerHTML = actions
-      .map((action) => this.renderActionItem(action, hasCurrentAction))
+      .map((action) => this.renderActionItem(action))
       .join('');
 
-    // Attach click handlers
     this.elements.actionsList.querySelectorAll('.action-item').forEach((el) => {
       const actionId = el.getAttribute('data-action-id');
       const action = actions.find((a) => a.id === actionId);
@@ -111,37 +81,37 @@ export class UI {
     });
   }
 
-  private renderActionItem(action: Action, hasCurrentAction: boolean): string {
+  private renderActionItem(action: Action): string {
     const player = this.game.state.player;
     const affordable = canAffordAction(player, action);
-    const disabled = !affordable || hasCurrentAction;
+
+    const costDisplay = action.tickGain
+      ? `+${action.tickGain} ticks`
+      : `${action.tickCost} ticks`;
 
     return `
-      <div class="action-item ${disabled ? 'disabled' : ''}" data-action-id="${action.id}">
+      <div class="action-item ${affordable ? '' : 'disabled'}" data-action-id="${action.id}">
         <div class="action-info">
           <span class="action-name">${action.name}</span>
         </div>
-        <span class="action-cost ${affordable ? 'affordable' : ''}">${action.tickCost} ticks</span>
+        <span class="action-cost ${affordable ? 'affordable' : ''}">${costDisplay}</span>
       </div>
     `;
   }
 
   private handleActionClick(action: Action): void {
-    this.game.selectAction(action);
+    this.game.performAction(action);
   }
 
   private renderLog(): void {
     const entries = this.game.state.log.slice(0, 20);
     this.elements.gameLog.innerHTML = entries
-      .map((entry) => {
-        const time = new Date(entry.timestamp).toLocaleTimeString();
-        return `
-          <div class="log-entry">
-            <span class="timestamp">[${time}]</span>
-            ${entry.message}
-          </div>
-        `;
-      })
+      .map((entry) => `
+        <div class="log-entry">
+          <span class="timestamp">[${entry.turn}]</span>
+          ${entry.message}
+        </div>
+      `)
       .join('');
   }
 }

@@ -2,15 +2,13 @@ import type { GameState, Action, LogEntry } from './types.ts';
 import { createPlayer } from './player.ts';
 import { canAffordAction, spendTicks, addTicks } from './actor.ts';
 
-export type GameEventType = 'tick' | 'action-start' | 'action-complete' | 'log';
+export type GameEventType = 'turn' | 'log';
 
 export type GameEventCallback = (game: Game) => void;
 
 export class Game {
   state: GameState;
   private listeners: Map<GameEventType, Set<GameEventCallback>> = new Map();
-  private tickInterval: number | null = null;
-  private lastTickTime: number = 0;
 
   constructor() {
     this.state = {
@@ -22,91 +20,37 @@ export class Game {
 
   start(): void {
     this.log('Welcome to Iterra.');
-    this.lastTickTime = performance.now();
-    this.tickInterval = window.setInterval(() => this.tick(), 100);
   }
 
-  stop(): void {
-    if (this.tickInterval !== null) {
-      clearInterval(this.tickInterval);
-      this.tickInterval = null;
-    }
-  }
-
-  private tick(): void {
-    const now = performance.now();
-    const deltaSeconds = (now - this.lastTickTime) / 1000;
-    this.lastTickTime = now;
-
+  performAction(action: Action): boolean {
     const player = this.state.player;
-
-    // Passive tick regeneration
-    if (player.tickRegenRate > 0) {
-      const ticksToAdd = player.tickRegenRate * deltaSeconds;
-      addTicks(player, ticksToAdd);
-    }
-
-    // Process current action progress
-    if (player.currentAction) {
-      player.actionProgress += deltaSeconds;
-      const requiredTime = player.currentAction.tickCost * 0.5; // 0.5s per tick cost
-
-      if (player.actionProgress >= requiredTime) {
-        this.completeAction();
-      }
-    }
-
-    this.emit('tick');
-  }
-
-  selectAction(action: Action): boolean {
-    const player = this.state.player;
-
-    if (player.currentAction) {
-      return false;
-    }
 
     if (!canAffordAction(player, action)) {
-      this.log(`Not enough ticks for ${action.name}. Need ${action.tickCost}, have ${Math.floor(player.ticks)}.`);
+      this.log(`Not enough ticks for ${action.name}. Need ${action.tickCost}, have ${player.ticks}.`);
       return false;
     }
 
-    if (!spendTicks(player, action.tickCost)) {
-      return false;
+    spendTicks(player, action.tickCost);
+
+    if (action.tickGain) {
+      addTicks(player, action.tickGain);
     }
-
-    player.currentAction = action;
-    player.actionProgress = 0;
-    this.emit('action-start');
-
-    return true;
-  }
-
-  private completeAction(): void {
-    const player = this.state.player;
-    const action = player.currentAction;
-
-    if (!action) return;
 
     const result = action.execute(player);
     this.state.turn++;
     this.log(result.message);
 
-    player.currentAction = null;
-    player.actionProgress = 0;
-
-    this.emit('action-complete');
+    this.emit('turn');
+    return true;
   }
 
   log(message: string): void {
     const entry: LogEntry = {
       turn: this.state.turn,
       message,
-      timestamp: Date.now(),
     };
     this.state.log.unshift(entry);
 
-    // Keep log size manageable
     if (this.state.log.length > 100) {
       this.state.log.pop();
     }

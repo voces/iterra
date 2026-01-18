@@ -3,6 +3,7 @@ export interface Action {
   name: string;
   description: string;
   tickCost: number;
+  tickGain?: number;
   tags: string[];
   execute: (actor: Actor) => ActionResult;
 }
@@ -17,10 +18,7 @@ export interface Actor {
   name: string;
   ticks: number;
   maxTicks: number;
-  tickRegenRate: number;
   actions: Action[];
-  currentAction: Action | null;
-  actionProgress: number;
 }
 
 export interface GameState {
@@ -32,5 +30,4 @@ export interface GameState {
 export interface LogEntry {
   turn: number;
   message: string;
-  timestamp: number;
 }

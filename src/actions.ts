@@ -3,12 +3,13 @@ import type { Action, Actor } from './types.ts';
 export const idle: Action = {
   id: 'idle',
   name: 'Idle',
-  description: 'Do nothing and let time pass.',
-  tickCost: 1,
-  tags: ['basic', 'passive'],
+  description: 'Rest and recover ticks.',
+  tickCost: 0,
+  tickGain: 5,
+  tags: ['basic', 'recovery'],
   execute: (_actor: Actor) => ({
     success: true,
-    message: 'You idle, letting time slip by.',
+    message: 'You rest, recovering 5 ticks.',
   }),
 };
 

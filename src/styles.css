@@ -53,10 +53,9 @@ header h1 {
   color: var(--success);
 }
 
-.tick-rate {
+#turn-display {
   color: var(--text-secondary);
-  font-size: 0.9rem;
-  margin-left: 0.5rem;
+  margin-left: 1.5rem;
 }
 
 main {
@@ -77,28 +76,6 @@ section h2 {
   margin-bottom: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-}
-
-#status-panel {
-  border-left: 3px solid var(--accent);
-}
-
-#current-action {
-  font-size: 1.25rem;
-  margin-bottom: 0.5rem;
-}
-
-#action-progress {
-  height: 4px;
-  background: var(--bg-tertiary);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-#action-progress .bar {
-  height: 100%;
-  background: var(--accent);
-  transition: width 0.1s linear;
 }
 
 #action-search {
