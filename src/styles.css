@@ -553,6 +553,15 @@ section h2 {
   color: var(--success);
 }
 
+.action-item.has-distance {
+  border-color: var(--warning);
+  border-style: dashed;
+}
+
+.action-item.has-distance .action-cost {
+  color: var(--warning);
+}
+
 /* Log Panel */
 #log-panel {
   max-height: 150px;

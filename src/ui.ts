@@ -1,7 +1,6 @@
 import type { Action, EquipSlot, StatType } from './types.ts';
 import type { Game } from './game.ts';
 import {
-  canAffordAction,
   getTotalWeight,
   getSpeedModifier,
   getDamageRange,
@@ -680,20 +679,25 @@ export class UI {
 
   private renderActionItem(action: Action): string {
     const player = this.game.state.player;
-    const affordable = canAffordAction(player, action);
+    const effectiveCost = this.game.getEffectiveTickCost(action);
+    const affordable = player.ticks >= effectiveCost;
+    const hasDistanceBonus = effectiveCost > action.tickCost;
 
     let costDisplay: string;
-    if (action.tickGain && action.tickCost) {
-      const net = action.tickGain - action.tickCost;
-      costDisplay = `${action.tickCost} cost, +${net} net`;
+    if (action.tickGain && effectiveCost) {
+      const net = action.tickGain - effectiveCost;
+      costDisplay = `${effectiveCost} cost, +${net} net`;
     } else if (action.tickGain) {
       costDisplay = `+${action.tickGain} ticks`;
     } else {
-      costDisplay = `${action.tickCost} ticks`;
+      costDisplay = `${effectiveCost} ticks`;
     }
 
+    // Add distance indicator if cost increased
+    const distanceClass = hasDistanceBonus ? ' has-distance' : '';
+
     return `
-      <div class="action-item ${affordable ? '' : 'disabled'}" data-action-id="${action.id}">
+      <div class="action-item ${affordable ? '' : 'disabled'}${distanceClass}" data-action-id="${action.id}">
         <div class="action-info">
           <span class="action-name">${action.name}</span>
         </div>

@@ -1,7 +1,6 @@
 import type { GameState, Action, LogEntry, EquipSlot, StatType } from './types.ts';
 import { createPlayer } from './player.ts';
 import {
-  canAffordAction,
   spendTicks,
   addTicks,
   isAlive,
@@ -61,7 +60,7 @@ export class Game {
       turn: 0,
       log: [],
       encounter: null,
-      availableNodes: {}, // Node type ID -> count
+      availableNodes: [], // Resource nodes with distance tracking
       structures: new Set(),
       pendingLoot: null,
       gameOver: false,
@@ -102,14 +101,17 @@ export class Game {
       return false;
     }
 
-    if (!canAffordAction(player, action)) {
+    // Calculate effective cost (includes distance bonus)
+    const effectiveCost = this.getEffectiveTickCost(action);
+
+    if (player.ticks < effectiveCost) {
       this.log(
-        `Not enough ticks for ${action.name}. Need ${action.tickCost}, have ${player.ticks}.`
+        `Not enough ticks for ${action.name}. Need ${effectiveCost}, have ${player.ticks}.`
       );
       return false;
     }
 
-    spendTicks(player, action.tickCost);
+    spendTicks(player, effectiveCost);
 
     if (action.tickGain) {
       addTicks(player, action.tickGain);
@@ -123,10 +125,10 @@ export class Game {
     this.state.turn++;
     this.log(result.message);
 
-    // Handle resource discovery (increment count)
+    // Handle resource discovery (add new node with distance 0)
     if (result.foundResource) {
       const nodeId = result.foundResource;
-      this.state.availableNodes[nodeId] = (this.state.availableNodes[nodeId] ?? 0) + 1;
+      this.state.availableNodes.push({ nodeId, distance: 0 });
     }
 
     // Handle location discovery
@@ -166,14 +168,15 @@ export class Game {
         this.processEnemyTurns();
       }
     } else {
-      // Process node drop-off when wandering
+      // Process node and location drop-off when wandering
       if (action.id === 'wander') {
         this.processNodeDropOff();
+        this.processLocationDropOff();
       }
 
       // Random encounter chance - higher when wandering, small chance on any action
-      if (action.id === 'wander' && !result.foundResource) {
-        this.checkForEncounter(0.25); // 25% when wandering without finding resources
+      if (action.id === 'wander' && !result.foundResource && !result.foundLocation && !result.foundExit) {
+        this.checkForEncounter(0.25); // 25% when wandering without finding anything
       } else if (!action.tags.includes('combat')) {
         this.checkForEncounter(0.03); // 3% on any other non-combat action
       }
@@ -237,7 +240,7 @@ export class Game {
   private canAffordAnyAction(): boolean {
     const available = this.getAvailableActions();
     const player = this.state.player;
-    return available.some((action) => canAffordAction(player, action));
+    return available.some((action) => player.ticks >= this.getEffectiveTickCost(action));
   }
 
   private processPassOut(): void {
@@ -289,43 +292,88 @@ export class Game {
     const nodeId = actionToNode[actionId];
     if (!nodeId) return;
 
-    const node = getResourceNode(nodeId);
-    if (!node) return;
+    const nodeDef = getResourceNode(nodeId);
+    if (!nodeDef) return;
 
-    const count = this.state.availableNodes[nodeId] ?? 0;
-    if (count <= 0) return;
+    // Find the closest node of this type (lowest distance)
+    const nodeIndex = this.state.availableNodes
+      .map((n, i) => ({ n, i }))
+      .filter(({ n }) => n.nodeId === nodeId)
+      .sort((a, b) => a.n.distance - b.n.distance)[0]?.i;
 
-    if (Math.random() < node.depletionChance) {
-      this.state.availableNodes[nodeId] = count - 1;
-      if (this.state.availableNodes[nodeId] <= 0) {
-        delete this.state.availableNodes[nodeId];
-      }
+    if (nodeIndex === undefined) return;
+
+    // Chance to deplete the node
+    if (Math.random() < nodeDef.depletionChance) {
+      this.state.availableNodes.splice(nodeIndex, 1);
     }
   }
 
   private processNodeDropOff(): void {
     // Each node instance has a chance to drop off when wandering
-    for (const [nodeId, count] of Object.entries(this.state.availableNodes)) {
-      if (count <= 0) continue;
+    // Nodes that don't drop off increase in distance
+    const nodesToRemove: number[] = [];
 
-      const node = getResourceNode(nodeId);
-      if (!node) continue;
+    for (let i = 0; i < this.state.availableNodes.length; i++) {
+      const node = this.state.availableNodes[i];
+      const nodeDef = getResourceNode(node.nodeId);
+      if (!nodeDef) continue;
 
-      // Check each instance independently
-      let lost = 0;
-      for (let i = 0; i < count; i++) {
-        if (Math.random() < node.dropOffChance) {
-          lost++;
+      // Drop-off chance increases with distance
+      const baseDropOffChance = nodeDef.dropOffChance;
+      const distanceMultiplier = 1 + node.distance * 0.1; // 10% more per distance
+      const dropOffChance = Math.min(0.5, baseDropOffChance * distanceMultiplier);
+
+      if (Math.random() < dropOffChance) {
+        nodesToRemove.push(i);
+      } else {
+        // Increase distance for nodes that survive
+        node.distance++;
+      }
+    }
+
+    // Remove dropped nodes (in reverse order to maintain indices)
+    for (let i = nodesToRemove.length - 1; i >= 0; i--) {
+      this.state.availableNodes.splice(nodesToRemove[i], 1);
+    }
+  }
+
+  private processLocationDropOff(): void {
+    // Each location entrance has a chance to drop off when wandering
+    // Entrances that don't drop off increase in distance
+    for (const [locationId, discovered] of Object.entries(this.state.discoveredLocations)) {
+      const location = getLocation(locationId);
+      if (!location) continue;
+
+      // Only process locations accessible from current location
+      const parentId = location.parentId ?? null;
+      if (parentId !== this.state.currentLocation) continue;
+
+      const entrancesToRemove: number[] = [];
+      const baseDropOffChance = 0.08; // Base 8% chance to lose an entrance
+
+      for (let i = 0; i < discovered.entrances.length; i++) {
+        const entrance = discovered.entrances[i];
+        // Drop-off chance increases with distance
+        const distanceMultiplier = 1 + entrance.distance * 0.15; // 15% more per distance
+        const dropOffChance = Math.min(0.4, baseDropOffChance * distanceMultiplier);
+
+        if (Math.random() < dropOffChance) {
+          entrancesToRemove.push(i);
+        } else {
+          // Increase distance for entrances that survive
+          entrance.distance++;
         }
       }
 
-      if (lost > 0) {
-        const newCount = count - lost;
-        if (newCount <= 0) {
-          delete this.state.availableNodes[nodeId];
-        } else {
-          this.state.availableNodes[nodeId] = newCount;
-        }
+      // Remove dropped entrances (in reverse order)
+      for (let i = entrancesToRemove.length - 1; i >= 0; i--) {
+        discovered.entrances.splice(entrancesToRemove[i], 1);
+      }
+
+      // Remove the location entirely if no entrances remain
+      if (discovered.entrances.length === 0) {
+        delete this.state.discoveredLocations[locationId];
       }
     }
   }
@@ -719,9 +767,9 @@ export class Game {
         return false;
       }
 
-      // Check gathering requirements (need at least one node)
+      // Check gathering requirements (need at least one node of that type)
       const gatherNode = gatheringRequirements[action.id];
-      if (gatherNode && (this.state.availableNodes[gatherNode] ?? 0) <= 0) {
+      if (gatherNode && !this.state.availableNodes.some((n) => n.nodeId === gatherNode)) {
         return false;
       }
 
@@ -964,10 +1012,11 @@ export class Game {
     if (!this.state.discoveredLocations[locationId]) {
       this.state.discoveredLocations[locationId] = {
         locationId,
-        entrances: 1,
+        entrances: [{ distance: 0 }],
       };
     } else {
-      this.state.discoveredLocations[locationId].entrances++;
+      // Add a new entrance with distance 0
+      this.state.discoveredLocations[locationId].entrances.push({ distance: 0 });
     }
 
     this.log(location.discoveryMessage);
@@ -983,7 +1032,7 @@ export class Game {
     }
 
     const discovered = this.state.discoveredLocations[locationId];
-    if (!discovered || discovered.entrances <= 0) {
+    if (!discovered || discovered.entrances.length === 0) {
       this.log(`You haven't found an entrance to ${location.name}.`);
       return false;
     }
@@ -994,9 +1043,11 @@ export class Game {
       return false;
     }
 
-    // Use up one entrance
-    discovered.entrances--;
-    if (discovered.entrances <= 0) {
+    // Use up the closest entrance (lowest distance)
+    discovered.entrances.sort((a, b) => a.distance - b.distance);
+    discovered.entrances.shift(); // Remove the first (closest) entrance
+
+    if (discovered.entrances.length === 0) {
       delete this.state.discoveredLocations[locationId];
     }
 
@@ -1008,7 +1059,7 @@ export class Game {
     this.state.currentLocation = locationId;
     this.state.foundExit = false;
     // Clear resource nodes when entering new location
-    this.state.availableNodes = {};
+    this.state.availableNodes = [];
 
     this.log(`You enter ${location.name}.`);
     this.emit('location-entered');
@@ -1033,7 +1084,7 @@ export class Game {
     this.state.currentLocation = previousLocation;
     this.state.foundExit = false;
     // Clear resource nodes when exiting
-    this.state.availableNodes = {};
+    this.state.availableNodes = [];
 
     if (previousLocation === null) {
       this.log(`You exit ${currentLocation?.name ?? 'the location'} and return to the wilderness.`);
@@ -1072,12 +1123,56 @@ export class Game {
     };
   }
 
+  // Get info about available resource nodes
+  getAvailableNodeInfo(nodeId: string): { count: number; closestDistance: number } | null {
+    const nodes = this.state.availableNodes.filter((n) => n.nodeId === nodeId);
+    if (nodes.length === 0) return null;
+
+    const closestDistance = Math.min(...nodes.map((n) => n.distance));
+    return { count: nodes.length, closestDistance };
+  }
+
+  // Calculate effective tick cost for an action (includes distance bonus)
+  getEffectiveTickCost(action: Action): number {
+    const baseCost = action.tickCost;
+    const costPerDistance = 50; // Extra ticks per distance unit
+
+    // Map gathering actions to their resource nodes
+    const gatheringNodes: Record<string, string> = {
+      'gather-berries': 'berryBush',
+      'gather-sticks': 'fallenBranches',
+      'gather-rocks': 'rockyOutcrop',
+      'gather-fiber': 'tallGrass',
+    };
+
+    // Check if this is a gathering action
+    const nodeId = gatheringNodes[action.id];
+    if (nodeId) {
+      const nodeInfo = this.getAvailableNodeInfo(nodeId);
+      if (nodeInfo) {
+        return baseCost + nodeInfo.closestDistance * costPerDistance;
+      }
+    }
+
+    // Check if this is an enter location action
+    if (action.id.startsWith('enter-location-')) {
+      const locationId = action.id.replace('enter-location-', '');
+      const enterableLocations = this.getEnterableLocations();
+      const location = enterableLocations.find((l) => l.id === locationId);
+      if (location) {
+        return baseCost + location.closestDistance * costPerDistance;
+      }
+    }
+
+    return baseCost;
+  }
+
   // Get list of locations that can be entered from current position
-  getEnterableLocations(): Array<{ id: string; name: string; entrances: number }> {
-    const result: Array<{ id: string; name: string; entrances: number }> = [];
+  getEnterableLocations(): Array<{ id: string; name: string; entrances: number; closestDistance: number }> {
+    const result: Array<{ id: string; name: string; entrances: number; closestDistance: number }> = [];
 
     for (const [locationId, discovered] of Object.entries(this.state.discoveredLocations)) {
-      if (discovered.entrances <= 0) continue;
+      if (discovered.entrances.length === 0) continue;
 
       const location = getLocation(locationId);
       if (!location) continue;
@@ -1086,10 +1181,14 @@ export class Game {
       const parentId = location.parentId ?? null;
       if (parentId !== this.state.currentLocation) continue;
 
+      // Find the closest entrance
+      const closestDistance = Math.min(...discovered.entrances.map((e) => e.distance));
+
       result.push({
         id: locationId,
         name: location.name,
-        entrances: discovered.entrances,
+        entrances: discovered.entrances.length,
+        closestDistance,
       });
     }
 

@@ -247,7 +247,7 @@ export interface GameState {
   turn: number;
   log: LogEntry[];
   encounter: Encounter | null;
-  availableNodes: Record<string, number>; // Node type ID -> count of available instances
+  availableNodes: DiscoveredNode[]; // Resource nodes with distance tracking
   structures: Set<string>; // IDs of structures the player has built
   pendingLoot: Inventory | null; // Loot waiting to be picked up
   gameOver: boolean;
@@ -290,6 +290,13 @@ export interface LocationDef {
 // Tracks a discovered location instance
 export interface DiscoveredLocation {
   locationId: string;
-  // How many times this location has been found (can find multiple entrances)
-  entrances: number;
+  // Each entrance tracks its own distance (wanderings since discovery)
+  entrances: { distance: number }[];
+}
+
+// Tracks a discovered resource node instance
+export interface DiscoveredNode {
+  nodeId: string;
+  // Distance from discovery (wanderings since found)
+  distance: number;
 }
