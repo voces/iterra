@@ -103,6 +103,7 @@ export interface GameState {
   encounter: Encounter | null;
   availableNodes: Set<string>; // IDs of resource nodes currently available to gather
   structures: Set<string>; // IDs of structures the player has built
+  pendingLoot: Inventory | null; // Loot waiting to be picked up
   gameOver: boolean;
 }
 

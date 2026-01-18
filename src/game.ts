@@ -50,6 +50,7 @@ export class Game {
       encounter: null,
       availableNodes: new Set(),
       structures: new Set(),
+      pendingLoot: null,
       gameOver: false,
     };
   }
@@ -292,7 +293,7 @@ export class Game {
     switch (result) {
       case 'victory':
         this.log(`You defeated the ${enemy.name}!`);
-        this.grantLoot(enemy);
+        this.setPendingLoot(enemy);
         break;
       case 'defeat':
         this.log('You have been defeated...');
@@ -311,24 +312,92 @@ export class Game {
     this.emit('encounter-end');
   }
 
-  private grantLoot(enemy: typeof this.state.player): void {
+  private setPendingLoot(enemy: typeof this.state.player): void {
     const loot = generateLoot(enemy);
-    const player = this.state.player;
 
-    const lootMessages: string[] = [];
-
+    // Filter out zero-quantity items
+    const filteredLoot: Record<string, number> = {};
     for (const [itemId, amount] of Object.entries(loot)) {
       if (amount > 0) {
-        addItem(player, itemId, amount);
-        const item = getItem(itemId);
-        const itemName = item?.name ?? itemId;
-        lootMessages.push(`${amount} ${itemName}`);
+        filteredLoot[itemId] = amount;
       }
     }
 
-    if (lootMessages.length > 0) {
-      this.log(`Loot: ${lootMessages.join(', ')}`);
+    if (Object.keys(filteredLoot).length > 0) {
+      this.state.pendingLoot = filteredLoot;
+      const lootMessages = Object.entries(filteredLoot).map(([itemId, amount]) => {
+        const item = getItem(itemId);
+        return `${amount} ${item?.name ?? itemId}`;
+      });
+      this.log(`Loot available: ${lootMessages.join(', ')}`);
     }
+  }
+
+  takeLoot(itemId: string, amount: number = 1): boolean {
+    if (!this.state.pendingLoot || !this.state.pendingLoot[itemId]) {
+      return false;
+    }
+
+    const available = this.state.pendingLoot[itemId];
+    const toTake = Math.min(amount, available);
+
+    addItem(this.state.player, itemId, toTake);
+    this.state.pendingLoot[itemId] -= toTake;
+
+    if (this.state.pendingLoot[itemId] <= 0) {
+      delete this.state.pendingLoot[itemId];
+    }
+
+    // Clear pendingLoot if empty
+    if (Object.keys(this.state.pendingLoot).length === 0) {
+      this.state.pendingLoot = null;
+    }
+
+    const item = getItem(itemId);
+    this.log(`Took ${toTake} ${item?.name ?? itemId}.`);
+    this.emit('turn');
+    return true;
+  }
+
+  takeAllLoot(): void {
+    if (!this.state.pendingLoot) return;
+
+    for (const [itemId, amount] of Object.entries(this.state.pendingLoot)) {
+      addItem(this.state.player, itemId, amount);
+    }
+
+    this.log('Took all loot.');
+    this.state.pendingLoot = null;
+    this.emit('turn');
+  }
+
+  leaveLoot(): void {
+    if (!this.state.pendingLoot) return;
+
+    this.log('Left the loot behind.');
+    this.state.pendingLoot = null;
+    this.emit('turn');
+  }
+
+  dropItem(itemId: string, amount: number = 1): boolean {
+    const player = this.state.player;
+    const count = getItemCount(player, itemId);
+
+    if (count <= 0) {
+      return false;
+    }
+
+    const toDrop = Math.min(amount, count);
+    player.inventory[itemId] -= toDrop;
+
+    if (player.inventory[itemId] <= 0) {
+      delete player.inventory[itemId];
+    }
+
+    const item = getItem(itemId);
+    this.log(`Dropped ${toDrop} ${item?.name ?? itemId}.`);
+    this.emit('turn');
+    return true;
   }
 
   log(message: string): void {

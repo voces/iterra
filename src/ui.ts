@@ -17,6 +17,10 @@ export class UI {
     inventoryList: HTMLElement;
     structuresPanel: HTMLElement;
     structuresList: HTMLElement;
+    lootPanel: HTMLElement;
+    lootList: HTMLElement;
+    takeAllLoot: HTMLElement;
+    leaveLoot: HTMLElement;
     actionSearch: HTMLInputElement;
     actionsList: HTMLElement;
     gameLog: HTMLElement;
@@ -43,6 +47,10 @@ export class UI {
       inventoryList: document.getElementById('inventory-list')!,
       structuresPanel: document.getElementById('structures-panel')!,
       structuresList: document.getElementById('structures-list')!,
+      lootPanel: document.getElementById('loot-panel')!,
+      lootList: document.getElementById('loot-list')!,
+      takeAllLoot: document.getElementById('take-all-loot')!,
+      leaveLoot: document.getElementById('leave-loot')!,
       actionSearch: document.getElementById('action-search') as HTMLInputElement,
       actionsList: document.getElementById('actions-list')!,
       gameLog: document.getElementById('game-log')!,
@@ -70,6 +78,14 @@ export class UI {
       this.render();
     });
 
+    this.elements.takeAllLoot.addEventListener('click', () => {
+      this.game.takeAllLoot();
+    });
+
+    this.elements.leaveLoot.addEventListener('click', () => {
+      this.game.leaveLoot();
+    });
+
     document.addEventListener('keydown', (e) => {
       if (e.key === '/' && document.activeElement !== this.elements.actionSearch) {
         e.preventDefault();
@@ -89,6 +105,7 @@ export class UI {
       this.renderInventory();
       this.renderStructures();
       this.renderEncounter();
+      this.renderLoot();
       this.renderActions();
     });
     this.game.on('log', () => this.renderLog());
@@ -114,6 +131,7 @@ export class UI {
     this.renderInventory();
     this.renderStructures();
     this.renderEncounter();
+    this.renderLoot();
     this.renderActions();
     this.renderLog();
   }
@@ -144,13 +162,28 @@ export class UI {
       .map(([itemId, count]) => {
         const item = getItem(itemId);
         const name = item?.name ?? itemId;
-        return `<span class="inventory-item">${name}: <span class="item-count">${count}</span></span>`;
+        return `
+          <div class="inventory-item">
+            <span class="item-name">${name}: <span class="item-count">${count}</span></span>
+            <button class="drop-btn" data-item-id="${itemId}" title="Drop 1">-</button>
+          </div>
+        `;
       });
 
     if (items.length === 0) {
       this.elements.inventoryList.innerHTML = '<span class="inventory-empty">Empty</span>';
     } else {
       this.elements.inventoryList.innerHTML = items.join('');
+
+      // Add drop button listeners
+      this.elements.inventoryList.querySelectorAll('.drop-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
+          if (itemId) {
+            this.game.dropItem(itemId, 1);
+          }
+        });
+      });
     }
   }
 
@@ -174,6 +207,43 @@ export class UI {
     });
 
     this.elements.structuresList.innerHTML = items.join('');
+  }
+
+  private renderLoot(): void {
+    const loot = this.game.state.pendingLoot;
+
+    if (!loot) {
+      this.elements.lootPanel.classList.add('hidden');
+      return;
+    }
+
+    this.elements.lootPanel.classList.remove('hidden');
+
+    const items = Object.entries(loot)
+      .filter(([_, count]) => count > 0)
+      .map(([itemId, count]) => {
+        const item = getItem(itemId);
+        const name = item?.name ?? itemId;
+        const weight = item?.weight ?? 0;
+        return `
+          <div class="loot-item">
+            <span class="item-name">${name}: ${count} (${(weight * count).toFixed(1)} wt)</span>
+            <button class="take-btn" data-item-id="${itemId}" title="Take 1">+</button>
+          </div>
+        `;
+      });
+
+    this.elements.lootList.innerHTML = items.join('');
+
+    // Add take button listeners
+    this.elements.lootList.querySelectorAll('.take-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
+        if (itemId) {
+          this.game.takeLoot(itemId, 1);
+        }
+      });
+    });
   }
 
   private renderEncounter(): void {
