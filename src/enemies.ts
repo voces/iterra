@@ -163,13 +163,9 @@ export function calculateEnemyLevel(template: EnemyTemplate, playerLevel: number
   // Enemy level scales with player level, with variance
   const levelOffset = Math.floor((playerLevel - 1) * 0.4);
 
-  // At low player levels, reduce variance to prevent unfair fights
-  const maxVariance = playerLevel <= 2 ? 0 : 1;
-  const randomVariance = Math.floor(Math.random() * (maxVariance * 2 + 1)) - maxVariance;
-
-  // Enemy level can't exceed player level + 1
-  const maxLevel = playerLevel + 1;
-  return Math.min(maxLevel, Math.max(1, baseLevel + levelOffset + randomVariance));
+  // Add variance to enemy levels
+  const randomVariance = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
+  return Math.max(1, baseLevel + levelOffset + randomVariance);
 }
 
 // Generate enemy stats based on level and template

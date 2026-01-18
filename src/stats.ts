@@ -194,7 +194,6 @@ export function calculateBlockChance(blockRating: number, attackerAR: number): n
 }
 
 // Hit chance formula (D2-style): AR / (AR + DR) * levelFactor
-// Has a minimum floor to prevent frustrating combat at low levels
 export function calculateHitChance(
   attackerAR: number,
   defenderDR: number,
@@ -208,9 +207,8 @@ export function calculateHitChance(
   // Base AR vs DR calculation
   const baseChance = attackerAR / (attackerAR + defenderDR);
 
-  // Apply level factor with minimum floor of 25%
-  // This prevents frustrating miss streaks at low levels
-  return Math.max(0.25, baseChance * levelFactor);
+  // Apply level factor
+  return baseChance * levelFactor;
 }
 
 // Legacy functions for backward compatibility (will compute based on stats only)
