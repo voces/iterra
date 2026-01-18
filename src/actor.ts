@@ -22,7 +22,7 @@ export function createActor(
     maxHealth = 100,
     damage = 10,
     saturation = 10, // Start at nominal max
-    maxSaturation = 15, // Can go 5 above nominal for healing
+    maxSaturation = 20, // Can store extra for healing
     inventory = {},
     actions = [],
   } = options;
