@@ -572,6 +572,7 @@ export class Game {
       'craft-campfire': { requiresItems: { sticks: 5, rocks: 3 } },
       'place-campfire': { requiresNoCampfire: true, requiresItems: { campfire: 1 } },
       'pickup-campfire': { requiresCampfire: true },
+      'smother-campfire': { requiresCampfire: true },
       'cook-meat': { requiresCampfire: true, requiresItems: { rawMeat: 1 } },
       'craft-stone-knife': { requiresItems: { rocks: 2, sticks: 1 } },
       'craft-stone-spear': { requiresItems: { rocks: 1, sticks: 3, fiber: 2 } },
@@ -651,6 +652,11 @@ export class Game {
         }
       }
 
+      // Can't wander with a placed campfire
+      if (action.id === 'wander' && this.state.structures.has('campfire')) {
+        return false;
+      }
+
       return true;
     });
   }
@@ -704,8 +710,11 @@ export class Game {
     // Idle/wander are common exploration actions
     if (action.id === 'idle') {
       score += 40;
-      // Higher if low on ticks
-      if (player.ticks < 500) score += 30;
+      // Much higher priority when low on ticks (not in combat)
+      const tickPercent = player.ticks / player.maxTicks;
+      if (tickPercent < 0.1) score += 80; // Critical - top priority
+      else if (tickPercent < 0.2) score += 50;
+      else if (tickPercent < 0.3) score += 30;
     }
     if (action.id === 'wander') score += 60;
 
@@ -759,6 +768,9 @@ export class Game {
       }
       else if (action.id === 'pickup-campfire') {
         score += 15;
+      }
+      else if (action.id === 'smother-campfire') {
+        score += 10; // Last resort - usually want to pick up instead
       }
       else {
         score += 30;

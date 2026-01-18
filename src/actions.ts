@@ -49,7 +49,15 @@ export const wander: Action = {
   description: 'Wander aimlessly, perhaps discovering something.',
   tickCost: 300,
   tags: ['basic', 'exploration', 'movement', 'non-combat'],
-  execute: (_actor: Actor, _context?: ActionContext) => {
+  execute: (_actor: Actor, context?: ActionContext) => {
+    // Can't wander away from a placed campfire
+    if (context?.game?.structures.has('campfire')) {
+      return {
+        success: false,
+        message: "You can't wander off with a campfire burning! Pick it up or smother it first.",
+      };
+    }
+
     const discovered = rollForResourceDiscovery();
 
     if (discovered) {
@@ -214,6 +222,26 @@ export const pickupCampfire: Action = {
     return {
       success: true,
       message: 'You pick up the campfire.',
+    };
+  },
+};
+
+export const smotherCampfire: Action = {
+  id: 'smother-campfire',
+  name: 'Smother Campfire',
+  description: 'Extinguish and discard your placed campfire.',
+  tickCost: 25,
+  tags: ['crafting', 'non-combat'],
+  execute: (_actor: Actor, context?: ActionContext) => {
+    if (!context?.game?.structures.has('campfire')) {
+      return { success: false, message: 'No campfire is placed.' };
+    }
+
+    context.game.structures.delete('campfire');
+
+    return {
+      success: true,
+      message: 'You smother the campfire. It is destroyed.',
     };
   },
 };
@@ -875,6 +903,7 @@ export const craftingActions: Action[] = [
   craftCampfire,
   placeCampfire,
   pickupCampfire,
+  smotherCampfire,
   cookMeat,
   craftStoneKnife,
   craftStoneSpear,
