@@ -190,12 +190,10 @@ export function getBlockDamageReduction(stats: Stats, shieldArmor: number = 0): 
 export function calculateBlockChance(blockRating: number, attackerAR: number): number {
   if (blockRating === 0) return 0;
   // Block is easier than dodge (more reliable with shield)
-  const blockChance = blockRating / (blockRating + attackerAR * 0.7);
-  return Math.max(0, Math.min(0.75, blockChance)); // Cap at 75%
+  return blockRating / (blockRating + attackerAR * 0.7);
 }
 
 // Hit chance formula (D2-style): AR / (AR + DR) * levelFactor
-// Clamped between 5% and 95%
 export function calculateHitChance(
   attackerAR: number,
   defenderDR: number,
@@ -210,23 +208,20 @@ export function calculateHitChance(
   const baseChance = attackerAR / (attackerAR + defenderDR);
 
   // Apply level factor
-  const hitChance = baseChance * levelFactor;
-
-  // Clamp between 5% and 95%
-  return Math.max(0.05, Math.min(0.95, hitChance));
+  return baseChance * levelFactor;
 }
 
 // Legacy functions for backward compatibility (will compute based on stats only)
 export function getHitChance(stats: Stats): number {
   // Rough approximation when we don't have full context
   const ar = getAttackRating(stats, 1, 0);
-  return Math.min(0.95, Math.max(0.05, ar / (ar + 20)));
+  return ar / (ar + 20);
 }
 
 export function getDodgeChance(stats: Stats): number {
   // Rough approximation when we don't have full context
   const dr = getDodgeRating(stats, 1, 0);
-  return Math.min(0.50, Math.max(0.05, dr / (dr + 40)));
+  return dr / (dr + 40);
 }
 
 // Speed bonus: agility * 2
