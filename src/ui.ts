@@ -13,6 +13,7 @@ import { STAT_NAMES, STAT_DESCRIPTIONS, STAT_TYPES } from './stats.ts';
 
 export class UI {
   private game: Game;
+  private actionGroupState: Map<string, boolean> = new Map(); // Track action group expanded state (true = expanded)
   private elements: {
     levelCount: HTMLElement;
     xpCount: HTMLElement;
@@ -123,15 +124,35 @@ export class UI {
       header.addEventListener('click', () => {
         const section = header.closest('.collapsible');
         if (section) {
-          section.classList.toggle('collapsed');
+          const content = section.querySelector('.section-content') as HTMLElement;
+          const isCollapsed = section.classList.toggle('collapsed');
           // Update toggle icon
           const icon = header.querySelector('.toggle-icon');
           if (icon) {
-            icon.textContent = section.classList.contains('collapsed') ? '▶' : '▼';
+            icon.textContent = isCollapsed ? '▶' : '▼';
+          }
+          // Use inline style to override ID-based display rules
+          if (content) {
+            content.style.display = isCollapsed ? 'none' : '';
           }
         }
       });
     });
+
+    // Initialize mobile-collapsed sections properly
+    if (window.matchMedia('(max-width: 600px)').matches) {
+      document.querySelectorAll('.collapsed-mobile').forEach((section) => {
+        section.classList.add('collapsed');
+        const content = section.querySelector('.section-content') as HTMLElement;
+        const icon = section.querySelector('.toggle-icon');
+        if (content) {
+          content.style.display = 'none';
+        }
+        if (icon) {
+          icon.textContent = '▶';
+        }
+      });
+    }
   }
 
   private subscribeToGame(): void {
@@ -467,7 +488,13 @@ export class UI {
       // Otherwise show grouped/categorized actions
       const groups = this.game.getGroupedActions();
       this.elements.actionsList.innerHTML = groups
-        .map((group, idx) => this.renderActionGroup(group.category, group.actions, idx === 0))
+        .map((group, idx) => {
+          // Check if user has explicitly set state, otherwise use default (first expanded, others collapsed)
+          const defaultExpanded = idx === 0;
+          const userState = this.actionGroupState.get(group.category);
+          const expanded = userState !== undefined ? userState : defaultExpanded;
+          return this.renderActionGroup(group.category, group.actions, expanded);
+        })
         .join('');
     }
 
@@ -482,8 +509,13 @@ export class UI {
     // Setup collapsible category headers
     this.elements.actionsList.querySelectorAll('.action-category-header').forEach((el) => {
       el.addEventListener('click', () => {
+        const category = el.getAttribute('data-category');
         const content = el.nextElementSibling as HTMLElement;
         const isCollapsed = el.classList.toggle('collapsed');
+        // Track expanded state (store opposite of collapsed)
+        if (category) {
+          this.actionGroupState.set(category, !isCollapsed);
+        }
         // Update toggle icon
         const toggle = el.querySelector('.category-toggle');
         if (toggle) {
