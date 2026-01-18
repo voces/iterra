@@ -21,6 +21,42 @@ export interface ActionResult {
   foundResource?: string;
 }
 
+// === Stats System ===
+
+// Core stats that can be leveled
+export type StatType =
+  | 'vitality' // +5 max HP per point
+  | 'strength' // +1 melee damage, synergy with agility
+  | 'agility' // +2% dodge, +2 speed, synergy with strength/precision
+  | 'precision' // +2% hit chance, +1 ranged damage
+  | 'endurance' // +1 max saturation, reduces hunger decay
+  | 'arcane' // Magic capacity (future)
+  | 'luck'; // Affects crits, loot, random events
+
+export type Stats = Record<StatType, number>;
+
+// Tracks which stats were used for auto-leveling
+export type StatUsage = Record<StatType, number>;
+
+export interface LevelInfo {
+  level: number;
+  xp: number;
+  xpToNextLevel: number;
+  freeStatPoints: number;
+  stats: Stats;
+  statUsage: StatUsage; // Tracks actions for auto-stat assignment
+}
+
+// Enemy stat growth per level (different for each enemy type)
+export interface EnemyStatGrowth {
+  vitality: number; // HP per level
+  strength: number; // Damage per level
+  agility: number; // Dodge/speed per level
+  precision: number; // Hit chance per level
+  baseLevel: number; // Minimum level for this enemy type
+  xpReward: number; // Base XP, scaled by level
+}
+
 // Inventory is a flexible map of item IDs to quantities
 export type Inventory = Record<string, number>;
 
@@ -98,6 +134,8 @@ export interface Actor {
   inventory: Inventory;
   equipment: Equipment;
   actions: Action[];
+  // Leveling and stats
+  levelInfo: LevelInfo;
 }
 
 export interface Encounter {

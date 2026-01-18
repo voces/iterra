@@ -1,4 +1,11 @@
-import type { Actor, Action, Inventory, Equipment, EquipSlot } from './types.ts';
+import type { Actor, Action, Inventory, Equipment, EquipSlot, Stats } from './types.ts';
+import {
+  createLevelInfo,
+  getMaxHealthBonus,
+  getMaxSaturationBonus,
+  getSpeedBonus,
+  getMeleeDamageBonus,
+} from './stats.ts';
 
 export function createActor(
   id: string,
@@ -14,6 +21,8 @@ export function createActor(
     inventory?: Inventory;
     equipment?: Equipment;
     actions?: Action[];
+    level?: number;
+    stats?: Partial<Stats>;
   } = {}
 ): Actor {
   const {
@@ -27,7 +36,15 @@ export function createActor(
     inventory = {},
     equipment = {},
     actions = [],
+    level = 1,
+    stats,
   } = options;
+
+  const levelInfo = createLevelInfo(level, stats);
+
+  // Apply stat bonuses to base values
+  const effectiveMaxHealth = maxHealth + getMaxHealthBonus(levelInfo.stats);
+  const effectiveMaxSaturation = maxSaturation + getMaxSaturationBonus(levelInfo.stats);
 
   return {
     id,
@@ -36,15 +53,34 @@ export function createActor(
     maxTicks,
     speed,
     carryCapacity,
-    health: maxHealth,
-    maxHealth,
+    health: effectiveMaxHealth,
+    maxHealth: effectiveMaxHealth,
     damage,
     saturation,
-    maxSaturation,
+    maxSaturation: effectiveMaxSaturation,
     inventory: { ...inventory },
     equipment: { ...equipment },
     actions: [...actions],
+    levelInfo,
   };
+}
+
+// Recalculate derived stats after stat changes
+export function recalculateStats(actor: Actor, baseMaxHealth: number = 100, baseMaxSaturation: number = 20): void {
+  const stats = actor.levelInfo.stats;
+  const oldMaxHealth = actor.maxHealth;
+
+  actor.maxHealth = baseMaxHealth + getMaxHealthBonus(stats);
+  actor.maxSaturation = baseMaxSaturation + getMaxSaturationBonus(stats);
+
+  // If max health increased, heal by the difference
+  if (actor.maxHealth > oldMaxHealth) {
+    actor.health += actor.maxHealth - oldMaxHealth;
+  }
+
+  // Cap current values
+  actor.health = Math.min(actor.health, actor.maxHealth);
+  actor.saturation = Math.min(actor.saturation, actor.maxSaturation);
 }
 
 export function canAffordAction(actor: Actor, action: Action): boolean {
@@ -183,7 +219,8 @@ export function getSpeedModifier(actor: Actor): number {
 }
 
 export function getEffectiveSpeed(actor: Actor): number {
-  return Math.max(10, actor.speed + getSpeedModifier(actor)); // Min speed of 10
+  const statBonus = getSpeedBonus(actor.levelInfo.stats);
+  return Math.max(10, actor.speed + getSpeedModifier(actor) + statBonus); // Min speed of 10
 }
 
 // Equipment helpers
@@ -304,7 +341,8 @@ export function getEquipmentRangedBonus(actor: Actor): number {
 }
 
 export function getEffectiveDamage(actor: Actor): number {
-  return actor.damage + getEquipmentDamageBonus(actor);
+  const statBonus = getMeleeDamageBonus(actor.levelInfo.stats);
+  return actor.damage + getEquipmentDamageBonus(actor) + statBonus;
 }
 
 // Reduces incoming damage based on armor

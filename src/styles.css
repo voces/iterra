@@ -514,3 +514,92 @@ section h2 {
 #restart-button:hover {
   background: var(--accent-hover);
 }
+
+/* Level/XP Display */
+#level-count {
+  color: var(--accent);
+  font-weight: bold;
+}
+
+#xp-count {
+  color: var(--text-primary);
+}
+
+#xp-next {
+  color: var(--text-secondary);
+  font-size: 0.85em;
+}
+
+/* Character Stats Panel */
+#character-stats-panel {
+  border-left: 3px solid #9333ea;
+}
+
+#character-stats-panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+#free-points-display {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: normal;
+}
+
+#free-points-display.has-points {
+  color: var(--success);
+  font-weight: bold;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+#character-stats-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.stat-name {
+  flex: 1;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: help;
+}
+
+.stat-value {
+  color: var(--text-primary);
+  font-weight: bold;
+  min-width: 24px;
+  text-align: right;
+}
+
+.allocate-btn {
+  padding: 0.1rem 0.5rem;
+  font-size: 1rem;
+  font-weight: bold;
+  color: var(--success);
+  background: transparent;
+  border: 1px solid var(--success);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.allocate-btn:hover {
+  background: var(--success);
+  color: var(--bg-primary);
+}

@@ -1,5 +1,6 @@
-import type { Actor, LootTable, Inventory } from './types.ts';
+import type { Actor, LootTable, Inventory, Stats, EnemyStatGrowth } from './types.ts';
 import { createActor } from './actor.ts';
+import { createEmptyStats } from './stats.ts';
 
 export interface EnemyTemplate {
   id: string;
@@ -11,6 +12,8 @@ export interface EnemyTemplate {
   aggressiveness: number; // 0-1, higher = less likely to flee
   loot: LootTable;
   usesInventory?: boolean; // If true, drops its inventory instead of loot table
+  // Stat growth per level
+  statGrowth: EnemyStatGrowth;
 }
 
 export const enemyTemplates: EnemyTemplate[] = [
@@ -26,6 +29,14 @@ export const enemyTemplates: EnemyTemplate[] = [
       rawMeat: { min: 1, max: 2, chance: 0.9 },
       rawLeather: { min: 1, max: 2, chance: 0.7 },
     },
+    statGrowth: {
+      vitality: 2, // +10 HP per level
+      strength: 1.5, // +1.5 damage per level
+      agility: 2, // Fast, good at dodging
+      precision: 1,
+      baseLevel: 1,
+      xpReward: 25,
+    },
   },
   {
     id: 'boar',
@@ -38,6 +49,14 @@ export const enemyTemplates: EnemyTemplate[] = [
     loot: {
       rawMeat: { min: 2, max: 4, chance: 1.0 },
       rawLeather: { min: 1, max: 3, chance: 0.8 },
+    },
+    statGrowth: {
+      vitality: 3, // Tanky
+      strength: 2, // High damage growth
+      agility: 0.5, // Slow
+      precision: 1,
+      baseLevel: 2,
+      xpReward: 35,
     },
   },
   {
@@ -52,6 +71,14 @@ export const enemyTemplates: EnemyTemplate[] = [
       rawMeat: { min: 1, max: 1, chance: 0.5 },
       venomGland: { min: 1, max: 2, chance: 0.8 },
     },
+    statGrowth: {
+      vitality: 0.5, // Fragile
+      strength: 2.5, // High damage (venomous)
+      agility: 3, // Very fast and evasive
+      precision: 2, // Accurate strikes
+      baseLevel: 1,
+      xpReward: 30,
+    },
   },
   {
     id: 'bandit',
@@ -63,6 +90,14 @@ export const enemyTemplates: EnemyTemplate[] = [
     aggressiveness: 0.5,
     loot: {},
     usesInventory: true,
+    statGrowth: {
+      vitality: 1.5,
+      strength: 1.5,
+      agility: 1.5,
+      precision: 1.5, // Balanced growth
+      baseLevel: 2,
+      xpReward: 40,
+    },
   },
 ];
 
@@ -78,20 +113,64 @@ function generateBanditInventory(): Inventory {
   return inv;
 }
 
-export function createEnemy(template: EnemyTemplate): Actor {
+// Calculate enemy level based on player level
+export function calculateEnemyLevel(template: EnemyTemplate, playerLevel: number): number {
+  const { baseLevel } = template.statGrowth;
+
+  // Enemy level scales with player level, with variance
+  const levelOffset = Math.floor((playerLevel - 1) * 0.4);
+  const randomVariance = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
+
+  return Math.max(1, baseLevel + levelOffset + randomVariance);
+}
+
+// Generate enemy stats based on level and template
+function generateEnemyStats(template: EnemyTemplate, level: number): Stats {
+  const { statGrowth } = template;
+  const stats = createEmptyStats();
+
+  // Variance factor: 0.8 to 1.2 for each stat
+  const variance = () => 0.8 + Math.random() * 0.4;
+
+  // Stats scale with level above 1
+  const levelBonus = Math.max(0, level - 1);
+
+  stats.vitality = Math.floor(statGrowth.vitality * levelBonus * variance());
+  stats.strength = Math.floor(statGrowth.strength * levelBonus * variance());
+  stats.agility = Math.floor(statGrowth.agility * levelBonus * variance());
+  stats.precision = Math.floor(statGrowth.precision * levelBonus * variance());
+
+  // Enemies don't use endurance, arcane, or luck much
+  stats.endurance = 0;
+  stats.arcane = 0;
+  stats.luck = Math.floor(Math.random() * 2); // Slight random luck
+
+  return stats;
+}
+
+export function createEnemy(template: EnemyTemplate, playerLevel: number = 1): Actor {
   const inventory = template.usesInventory ? generateBanditInventory() : {};
+  const level = calculateEnemyLevel(template, playerLevel);
+  const stats = generateEnemyStats(template, level);
+
+  // Base values scale slightly with level too
+  const levelMultiplier = 1 + (level - 1) * 0.1;
+  const scaledHealth = Math.floor(template.maxHealth * levelMultiplier);
+  const scaledDamage = Math.floor(template.damage * levelMultiplier);
 
   return createActor(template.id, template.name, {
-    maxHealth: template.maxHealth,
-    damage: template.damage,
+    maxHealth: scaledHealth,
+    damage: scaledDamage,
     speed: template.speed,
     maxTicks: 5000,
     inventory,
     actions: [],
+    level,
+    stats,
   });
 }
 
-export function generateLoot(enemy: Actor): Inventory {
+export function generateLoot(enemy: Actor, playerLuckBonus: number = 0): Inventory {
   const template = getEnemyTemplate(enemy);
   if (!template) return {};
 
@@ -104,16 +183,41 @@ export function generateLoot(enemy: Actor): Inventory {
   const loot: Inventory = {};
   for (const [itemId, drop] of Object.entries(template.loot)) {
     if (Math.random() < drop.chance) {
-      const amount = Math.floor(Math.random() * (drop.max - drop.min + 1)) + drop.min;
-      loot[itemId] = amount;
+      // Base amount plus luck bonus
+      const baseAmount = Math.floor(Math.random() * (drop.max - drop.min + 1)) + drop.min;
+      const bonusAmount = Math.floor(baseAmount * playerLuckBonus);
+      loot[itemId] = baseAmount + bonusAmount;
     }
   }
   return loot;
 }
 
-export function getRandomEnemy(): Actor {
+export function getRandomEnemy(playerLevel: number = 1): Actor {
   const template = enemyTemplates[Math.floor(Math.random() * enemyTemplates.length)];
-  return createEnemy(template);
+  return createEnemy(template, playerLevel);
+}
+
+// Get XP reward for killing an enemy
+export function getXpReward(enemy: Actor, playerLevel: number): number {
+  const template = getEnemyTemplate(enemy);
+  if (!template) return 10;
+
+  const baseXp = template.statGrowth.xpReward;
+  const enemyLevel = enemy.levelInfo.level;
+
+  // Level difference modifier
+  const levelDiff = enemyLevel - playerLevel;
+  let modifier = 1;
+
+  if (levelDiff > 0) {
+    // Bonus for higher level enemies (10% per level)
+    modifier = 1 + levelDiff * 0.1;
+  } else if (levelDiff < 0) {
+    // Penalty for lower level enemies (min 10%)
+    modifier = Math.max(0.1, 1 + levelDiff * 0.15);
+  }
+
+  return Math.floor(baseXp * enemyLevel * modifier);
 }
 
 export function getEnemyTemplate(enemy: Actor): EnemyTemplate | undefined {

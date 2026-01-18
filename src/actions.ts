@@ -15,6 +15,14 @@ import {
 import { rollForResourceDiscovery, getResourceNode } from './resources.ts';
 import { getRecipe, canCraftRecipe, applyRecipe } from './recipes.ts';
 import { getItem } from './items.ts';
+import {
+  getHitChance,
+  getDodgeChance,
+  getCritChance,
+  getCritMultiplier,
+  getRangedDamageBonus,
+  trackStatUsage,
+} from './stats.ts';
 
 // === Basic Actions ===
 
@@ -520,22 +528,60 @@ export const attack: Action = {
     }
 
     const enemy = context.encounter.enemy;
-    const damage = getEffectiveDamage(actor);
+    const actorStats = actor.levelInfo.stats;
+    const enemyStats = enemy.levelInfo.stats;
+
+    // Track stat usage for auto-leveling
+    trackStatUsage(actor.levelInfo, 'strength', 1);
+    trackStatUsage(actor.levelInfo, 'precision', 0.5);
+
+    // Hit check
+    const hitChance = getHitChance(actorStats);
+    if (Math.random() > hitChance) {
+      return {
+        success: true,
+        message: `You swing at the ${enemy.name} but miss!`,
+      };
+    }
+
+    // Dodge check
+    const dodgeChance = getDodgeChance(enemyStats);
+    if (Math.random() < dodgeChance) {
+      return {
+        success: true,
+        message: `The ${enemy.name} dodges your attack!`,
+      };
+    }
+
+    // Calculate damage
+    let damage = getEffectiveDamage(actor);
+
+    // Critical hit check
+    const critChance = getCritChance(actorStats);
+    const isCrit = Math.random() < critChance;
+    if (isCrit) {
+      damage = Math.floor(damage * getCritMultiplier(actorStats));
+      trackStatUsage(actor.levelInfo, 'luck', 1);
+    }
+
+    // Apply enemy armor
     const enemyArmor = getEquipmentArmorBonus(enemy);
     const finalDamage = applyArmor(damage, enemyArmor);
     dealDamage(enemy, finalDamage);
 
+    const critText = isCrit ? ' Critical hit!' : '';
+
     if (!isAlive(enemy)) {
       return {
         success: true,
-        message: `You strike the ${enemy.name} for ${finalDamage} damage, defeating it!`,
+        message: `You strike the ${enemy.name} for ${finalDamage} damage.${critText} Defeated!`,
         encounterEnded: true,
       };
     }
 
     return {
       success: true,
-      message: `You strike the ${enemy.name} for ${finalDamage} damage. (${enemy.health}/${enemy.maxHealth} HP)`,
+      message: `You strike the ${enemy.name} for ${finalDamage} damage.${critText} (${enemy.health}/${enemy.maxHealth} HP)`,
     };
   },
 };
@@ -557,26 +603,63 @@ export const throwRock: Action = {
 
     removeItem(actor, 'rocks', 1);
     const enemy = context.encounter.enemy;
-    const baseDamage = 8;
+    const actorStats = actor.levelInfo.stats;
+    const enemyStats = enemy.levelInfo.stats;
+
+    // Track stat usage
+    trackStatUsage(actor.levelInfo, 'precision', 1);
+    trackStatUsage(actor.levelInfo, 'agility', 0.3);
+
+    // Hit check (ranged uses precision more heavily)
+    const hitChance = getHitChance(actorStats);
+    if (Math.random() > hitChance) {
+      return {
+        success: true,
+        message: `You throw a rock at the ${enemy.name} but miss!`,
+      };
+    }
+
+    // Dodge check
+    const dodgeChance = getDodgeChance(enemyStats);
+    if (Math.random() < dodgeChance) {
+      return {
+        success: true,
+        message: `The ${enemy.name} dodges your thrown rock!`,
+      };
+    }
+
+    let baseDamage = 8 + getRangedDamageBonus(actorStats);
     const rangedBonus = getEquipmentRangedBonus(actor);
-    const enemyArmor = getEquipmentArmorBonus(enemy);
 
     // Ranged bonus adds damage vs fleeing enemies
     const fleeingBonus = context.encounter.enemyFleeing ? Math.floor(rangedBonus / 2) : 0;
-    const damage = applyArmor(baseDamage + fleeingBonus, enemyArmor);
+    baseDamage += fleeingBonus;
+
+    // Crit check
+    const critChance = getCritChance(actorStats);
+    const isCrit = Math.random() < critChance;
+    if (isCrit) {
+      baseDamage = Math.floor(baseDamage * getCritMultiplier(actorStats));
+      trackStatUsage(actor.levelInfo, 'luck', 1);
+    }
+
+    const enemyArmor = getEquipmentArmorBonus(enemy);
+    const damage = applyArmor(baseDamage, enemyArmor);
     dealDamage(enemy, damage);
+
+    const critText = isCrit ? ' Critical hit!' : '';
 
     if (!isAlive(enemy)) {
       return {
         success: true,
-        message: `Your rock strikes the ${enemy.name} for ${damage} damage, defeating it!`,
+        message: `Your rock strikes the ${enemy.name} for ${damage} damage.${critText} Defeated!`,
         encounterEnded: true,
       };
     }
 
     return {
       success: true,
-      message: `Your rock hits the ${enemy.name} for ${damage} damage. (${enemy.health}/${enemy.maxHealth} HP)`,
+      message: `Your rock hits the ${enemy.name} for ${damage} damage.${critText} (${enemy.health}/${enemy.maxHealth} HP)`,
     };
   },
 };
@@ -604,27 +687,64 @@ export const rangedAttack: Action = {
 
     removeItem(actor, 'arrow', 1);
     const enemy = context.encounter.enemy;
-    const baseDamage = getEffectiveDamage(actor);
+    const actorStats = actor.levelInfo.stats;
+    const enemyStats = enemy.levelInfo.stats;
+
+    // Track stat usage (precision is key for archery)
+    trackStatUsage(actor.levelInfo, 'precision', 1.5);
+    trackStatUsage(actor.levelInfo, 'agility', 0.5);
+
+    // Hit check (bow users get slight bonus from equipment)
+    const hitChance = getHitChance(actorStats) + 0.05;
+    if (Math.random() > hitChance) {
+      return {
+        success: true,
+        message: `Your arrow flies past the ${enemy.name}!`,
+      };
+    }
+
+    // Reduced dodge against arrows (harder to dodge)
+    const dodgeChance = getDodgeChance(enemyStats) * 0.7;
+    if (Math.random() < dodgeChance) {
+      return {
+        success: true,
+        message: `The ${enemy.name} narrowly dodges your arrow!`,
+      };
+    }
+
+    let baseDamage = getEffectiveDamage(actor) + getRangedDamageBonus(actorStats);
     const rangedBonus = getEquipmentRangedBonus(actor);
-    const enemyArmor = getEquipmentArmorBonus(enemy);
 
     // Big bonus vs fleeing enemies
     const fleeingBonus = context.encounter.enemyFleeing ? rangedBonus : 0;
-    const damage = applyArmor(baseDamage + fleeingBonus, enemyArmor);
+    baseDamage += fleeingBonus;
+
+    // Crit check (arrows have higher crit potential)
+    const critChance = getCritChance(actorStats) * 1.5;
+    const isCrit = Math.random() < critChance;
+    if (isCrit) {
+      baseDamage = Math.floor(baseDamage * getCritMultiplier(actorStats));
+      trackStatUsage(actor.levelInfo, 'luck', 1);
+    }
+
+    const enemyArmor = getEquipmentArmorBonus(enemy);
+    const damage = applyArmor(baseDamage, enemyArmor);
     dealDamage(enemy, damage);
+
+    const critText = isCrit ? ' Critical hit!' : '';
 
     if (!isAlive(enemy)) {
       const fleeMsg = context.encounter.enemyFleeing ? ' as it flees' : '';
       return {
         success: true,
-        message: `Your arrow strikes the ${enemy.name}${fleeMsg} for ${damage} damage, defeating it!`,
+        message: `Your arrow strikes the ${enemy.name}${fleeMsg} for ${damage} damage.${critText} Defeated!`,
         encounterEnded: true,
       };
     }
 
     return {
       success: true,
-      message: `Your arrow hits the ${enemy.name} for ${damage} damage. (${enemy.health}/${enemy.maxHealth} HP)`,
+      message: `Your arrow hits the ${enemy.name} for ${damage} damage.${critText} (${enemy.health}/${enemy.maxHealth} HP)`,
     };
   },
 };

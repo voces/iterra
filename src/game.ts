@@ -1,4 +1,4 @@
-import type { GameState, Action, LogEntry } from './types.ts';
+import type { GameState, Action, LogEntry, EquipSlot, StatType } from './types.ts';
 import { createPlayer } from './player.ts';
 import {
   canAffordAction,
@@ -15,19 +15,26 @@ import {
   getItemCount,
   equipItem,
   unequipSlot,
+  recalculateStats,
 } from './actor.ts';
-import type { EquipSlot } from './types.ts';
 import {
   createEncounter,
   processEnemyTurn,
   handlePlayerActionResult,
   endEncounter,
 } from './encounter.ts';
-import { getRandomEnemy, generateLoot } from './enemies.ts';
+import { getRandomEnemy, generateLoot, getXpReward } from './enemies.ts';
 import { getResourceNode } from './resources.ts';
 import { getItem } from './items.ts';
+import {
+  addXp,
+  allocateStatPoint,
+  getLootBonus,
+  getHungerResistance,
+  STAT_NAMES,
+} from './stats.ts';
 
-export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end' | 'game-over';
+export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end' | 'game-over' | 'level-up';
 
 export type GameEventCallback = (game: Game) => void;
 
@@ -152,8 +159,12 @@ export class Game {
   }
 
   private processHunger(): void {
-    if (Math.random() < HUNGER_DECAY_CHANCE) {
-      drainSaturation(this.state.player, 1);
+    const player = this.state.player;
+    const resistance = getHungerResistance(player.levelInfo.stats);
+
+    // Hunger decay chance reduced by endurance
+    if (Math.random() < HUNGER_DECAY_CHANCE * (1 - resistance)) {
+      drainSaturation(player, 1);
     }
   }
 
@@ -258,9 +269,13 @@ export class Game {
   }
 
   startEncounter(enemy?: ReturnType<typeof getRandomEnemy>): void {
-    const encounter = createEncounter(enemy);
+    const playerLevel = this.state.player.levelInfo.level;
+    const encounter = createEncounter(enemy, playerLevel);
     this.state.encounter = encounter;
-    this.log(`A wild ${encounter.enemy.name} appears!`);
+
+    const enemyLevel = encounter.enemy.levelInfo.level;
+    const levelDisplay = enemyLevel > 1 ? ` (Lv.${enemyLevel})` : '';
+    this.log(`A wild ${encounter.enemy.name}${levelDisplay} appears!`);
     this.emit('encounter-start');
   }
 
@@ -294,10 +309,41 @@ export class Game {
 
     const result = this.state.encounter.result;
     const enemy = this.state.encounter.enemy;
+    const player = this.state.player;
 
     switch (result) {
       case 'victory':
         this.log(`You defeated the ${enemy.name}!`);
+
+        // Grant XP
+        const xp = getXpReward(enemy, player.levelInfo.level);
+        const { levelsGained, autoStats } = addXp(player.levelInfo, xp);
+        this.log(`+${xp} XP`);
+
+        // Handle level ups
+        if (levelsGained > 0) {
+          recalculateStats(player);
+          this.log(`LEVEL UP! You are now level ${player.levelInfo.level}!`);
+
+          // Show auto-assigned stats
+          if (autoStats.length > 0) {
+            const statCounts: Record<string, number> = {};
+            for (const stat of autoStats) {
+              statCounts[stat] = (statCounts[stat] || 0) + 1;
+            }
+            const statList = Object.entries(statCounts)
+              .map(([stat, count]) => `+${count} ${STAT_NAMES[stat as StatType]}`)
+              .join(', ');
+            this.log(`Auto stats: ${statList}`);
+          }
+
+          if (player.levelInfo.freeStatPoints > 0) {
+            this.log(`You have ${player.levelInfo.freeStatPoints} stat points to allocate!`);
+          }
+
+          this.emit('level-up');
+        }
+
         this.setPendingLoot(enemy);
         break;
       case 'defeat':
@@ -318,7 +364,8 @@ export class Game {
   }
 
   private setPendingLoot(enemy: typeof this.state.player): void {
-    const loot = generateLoot(enemy);
+    const luckBonus = getLootBonus(this.state.player.levelInfo.stats);
+    const loot = generateLoot(enemy, luckBonus);
 
     // Filter out zero-quantity items
     const filteredLoot: Record<string, number> = {};
@@ -449,6 +496,20 @@ export class Game {
       return true;
     }
 
+    return false;
+  }
+
+  allocateStat(stat: StatType): boolean {
+    const player = this.state.player;
+
+    if (allocateStatPoint(player.levelInfo, stat)) {
+      recalculateStats(player);
+      this.log(`+1 ${STAT_NAMES[stat]}!`);
+      this.emit('turn');
+      return true;
+    }
+
+    this.log('No stat points available.');
     return false;
   }
 

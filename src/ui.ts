@@ -1,4 +1,4 @@
-import type { Action, EquipSlot } from './types.ts';
+import type { Action, EquipSlot, StatType } from './types.ts';
 import type { Game } from './game.ts';
 import {
   canAffordAction,
@@ -9,10 +9,14 @@ import {
   getEquipmentRangedBonus,
 } from './actor.ts';
 import { getItem } from './items.ts';
+import { STAT_NAMES, STAT_DESCRIPTIONS, STAT_TYPES } from './stats.ts';
 
 export class UI {
   private game: Game;
   private elements: {
+    levelCount: HTMLElement;
+    xpCount: HTMLElement;
+    xpNext: HTMLElement;
     tickCount: HTMLElement;
     turnCount: HTMLElement;
     healthCount: HTMLElement;
@@ -21,6 +25,8 @@ export class UI {
     maxSaturation: HTMLElement;
     weightCount: HTMLElement;
     maxWeight: HTMLElement;
+    characterStatsList: HTMLElement;
+    freePointsDisplay: HTMLElement;
     equipmentList: HTMLElement;
     inventoryList: HTMLElement;
     structuresPanel: HTMLElement;
@@ -44,6 +50,9 @@ export class UI {
   constructor(game: Game) {
     this.game = game;
     this.elements = {
+      levelCount: document.getElementById('level-count')!,
+      xpCount: document.getElementById('xp-count')!,
+      xpNext: document.getElementById('xp-next')!,
       tickCount: document.getElementById('tick-count')!,
       turnCount: document.getElementById('turn-count')!,
       healthCount: document.getElementById('health-count')!,
@@ -52,6 +61,8 @@ export class UI {
       maxSaturation: document.getElementById('max-saturation')!,
       weightCount: document.getElementById('weight-count')!,
       maxWeight: document.getElementById('max-weight')!,
+      characterStatsList: document.getElementById('character-stats-list')!,
+      freePointsDisplay: document.getElementById('free-points-display')!,
       equipmentList: document.getElementById('equipment-list')!,
       inventoryList: document.getElementById('inventory-list')!,
       structuresPanel: document.getElementById('structures-panel')!,
@@ -111,6 +122,7 @@ export class UI {
   private subscribeToGame(): void {
     this.game.on('turn', () => {
       this.renderStatus();
+      this.renderCharacterStats();
       this.renderEquipment();
       this.renderInventory();
       this.renderStructures();
@@ -119,6 +131,10 @@ export class UI {
       this.renderActions();
     });
     this.game.on('log', () => this.renderLog());
+    this.game.on('level-up', () => {
+      this.renderStatus();
+      this.renderCharacterStats();
+    });
     this.game.on('encounter-start', () => {
       this.renderEncounter();
       this.renderActions();
@@ -138,6 +154,7 @@ export class UI {
 
   render(): void {
     this.renderStatus();
+    this.renderCharacterStats();
     this.renderEquipment();
     this.renderInventory();
     this.renderStructures();
@@ -149,6 +166,13 @@ export class UI {
 
   private renderStatus(): void {
     const player = this.game.state.player;
+    const levelInfo = player.levelInfo;
+
+    // Level and XP
+    this.elements.levelCount.textContent = levelInfo.level.toString();
+    this.elements.xpCount.textContent = levelInfo.xp.toString();
+    this.elements.xpNext.textContent = levelInfo.xpToNextLevel.toString();
+
     this.elements.tickCount.textContent = player.ticks.toString();
     this.elements.turnCount.textContent = this.game.state.turn.toString();
     this.elements.healthCount.textContent = player.health.toString();
@@ -162,6 +186,52 @@ export class UI {
     const speedIndicator = speedMod > 0 ? '+' : '';
     this.elements.weightCount.textContent = weight.toFixed(1);
     this.elements.maxWeight.textContent = `${player.carryCapacity} (${speedIndicator}${Math.round(speedMod)} spd)`;
+  }
+
+  private renderCharacterStats(): void {
+    const player = this.game.state.player;
+    const levelInfo = player.levelInfo;
+    const stats = levelInfo.stats;
+    const freePoints = levelInfo.freeStatPoints;
+    const inCombat = this.game.state.encounter !== null;
+
+    // Show free points in header
+    if (freePoints > 0) {
+      this.elements.freePointsDisplay.textContent = `(${freePoints} points)`;
+      this.elements.freePointsDisplay.classList.add('has-points');
+    } else {
+      this.elements.freePointsDisplay.textContent = '';
+      this.elements.freePointsDisplay.classList.remove('has-points');
+    }
+
+    let html = '';
+
+    for (const stat of STAT_TYPES) {
+      const value = stats[stat];
+      const name = STAT_NAMES[stat];
+      const desc = STAT_DESCRIPTIONS[stat];
+      const canAllocate = freePoints > 0 && !inCombat;
+
+      html += `
+        <div class="stat-row">
+          <span class="stat-name" title="${desc}">${name}</span>
+          <span class="stat-value">${value}</span>
+          ${canAllocate ? `<button class="allocate-btn" data-stat="${stat}" title="Allocate point">+</button>` : ''}
+        </div>
+      `;
+    }
+
+    this.elements.characterStatsList.innerHTML = html;
+
+    // Add allocate button listeners
+    this.elements.characterStatsList.querySelectorAll('.allocate-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const stat = (e.target as HTMLElement).getAttribute('data-stat') as StatType;
+        if (stat) {
+          this.game.allocateStat(stat);
+        }
+      });
+    });
   }
 
   private renderEquipment(): void {

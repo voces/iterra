@@ -9,10 +9,17 @@ import {
   getEquipmentRangedBonus,
   applyArmor,
 } from './actor.ts';
+import {
+  getHitChance,
+  getDodgeChance,
+  getCritChance,
+  getCritMultiplier,
+  getMeleeDamageBonus,
+} from './stats.ts';
 
-export function createEncounter(enemy?: Actor): Encounter {
+export function createEncounter(enemy?: Actor, playerLevel: number = 1): Encounter {
   return {
-    enemy: enemy ?? getRandomEnemy(),
+    enemy: enemy ?? getRandomEnemy(playerLevel),
     playerFleeing: false,
     enemyFleeing: false,
     ended: false,
@@ -75,18 +82,52 @@ export function getEnemyAction(
 
 function enemyAttack(encounter: Encounter, player: Actor): EnemyAction {
   const enemy = encounter.enemy;
-  const baseDamage = enemy.damage;
+  const enemyStats = enemy.levelInfo.stats;
+  const playerStats = player.levelInfo.stats;
+
+  // Hit check
+  const hitChance = getHitChance(enemyStats);
+  if (Math.random() > hitChance) {
+    return {
+      type: 'attack',
+      message: `The ${enemy.name} attacks but misses!`,
+      damage: 0,
+    };
+  }
+
+  // Dodge check
+  const dodgeChance = getDodgeChance(playerStats);
+  if (Math.random() < dodgeChance) {
+    return {
+      type: 'attack',
+      message: `You dodge the ${enemy.name}'s attack!`,
+      damage: 0,
+    };
+  }
+
+  // Calculate damage
+  let baseDamage = enemy.damage + getMeleeDamageBonus(enemyStats);
+
+  // Critical hit check
+  const critChance = getCritChance(enemyStats);
+  const isCrit = Math.random() < critChance;
+  if (isCrit) {
+    baseDamage = Math.floor(baseDamage * getCritMultiplier(enemyStats));
+  }
+
+  // Apply armor reduction
   const playerArmor = getEquipmentArmorBonus(player);
   const playerRanged = getEquipmentRangedBonus(player);
-  // Ranged bonus provides some damage reduction (defensive awareness)
   const effectiveArmor = playerArmor + Math.floor(playerRanged / 3);
   const damage = applyArmor(baseDamage, effectiveArmor);
   dealDamage(player, damage);
 
+  const critText = isCrit ? ' Critical hit!' : '';
+
   if (!isAlive(player)) {
     return {
       type: 'attack',
-      message: `The ${enemy.name} strikes you for ${damage} damage. You have been defeated!`,
+      message: `The ${enemy.name} strikes you for ${damage} damage.${critText} You have been defeated!`,
       damage,
       encounterEnded: true,
     };
@@ -94,7 +135,7 @@ function enemyAttack(encounter: Encounter, player: Actor): EnemyAction {
 
   return {
     type: 'attack',
-    message: `The ${enemy.name} strikes you for ${damage} damage. (${player.health}/${player.maxHealth} HP)`,
+    message: `The ${enemy.name} strikes you for ${damage} damage.${critText} (${player.health}/${player.maxHealth} HP)`,
     damage,
   };
 }
