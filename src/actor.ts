@@ -4,7 +4,6 @@ import {
   getMaxHealthBonus,
   getMaxSaturationBonus,
   getSpeedBonus,
-  getMeleeDamageBonus,
 } from './stats.ts';
 
 export function createActor(
@@ -289,23 +288,6 @@ export function canEquipInSlot(itemId: string, slot: EquipSlot): boolean {
 }
 
 // Get total equipment bonuses
-export function getEquipmentDamageBonus(actor: Actor): number {
-  let bonus = 0;
-  const counted = new Set<string>();
-
-  for (const itemId of Object.values(actor.equipment)) {
-    if (itemId && !counted.has(itemId)) {
-      counted.add(itemId);
-      const item = getItem(itemId);
-      if (item?.damageBonus) {
-        bonus += item.damageBonus;
-      }
-    }
-  }
-
-  return bonus;
-}
-
 export function getEquipmentArmorBonus(actor: Actor): number {
   let bonus = 0;
   const counted = new Set<string>();
@@ -340,9 +322,83 @@ export function getEquipmentRangedBonus(actor: Actor): number {
   return bonus;
 }
 
+// Unarmed damage range (fists)
+const UNARMED_MIN_DAMAGE = 1;
+const UNARMED_MAX_DAMAGE = 3;
+
+export interface DamageRange {
+  min: number;
+  max: number;
+}
+
+// Get weapon's intrinsic damage range, or unarmed if no weapon
+export function getWeaponDamageRange(actor: Actor): DamageRange {
+  const mainHandId = actor.equipment.mainHand;
+  if (!mainHandId) {
+    return { min: UNARMED_MIN_DAMAGE, max: UNARMED_MAX_DAMAGE };
+  }
+
+  const item = getItem(mainHandId);
+  if (item?.minDamage !== undefined && item?.maxDamage !== undefined) {
+    return { min: item.minDamage, max: item.maxDamage };
+  }
+
+  // Fallback to unarmed if weapon doesn't have damage range
+  return { min: UNARMED_MIN_DAMAGE, max: UNARMED_MAX_DAMAGE };
+}
+
+// Get stat bonus from weapon scaling
+export function getWeaponStatBonus(actor: Actor): number {
+  const mainHandId = actor.equipment.mainHand;
+  const stats = actor.levelInfo.stats;
+
+  if (!mainHandId) {
+    // Unarmed: small str + agi scaling
+    return Math.floor(stats.strength * 0.5 + stats.agility * 0.3);
+  }
+
+  const item = getItem(mainHandId);
+  if (!item) {
+    return Math.floor(stats.strength * 0.5 + stats.agility * 0.3);
+  }
+
+  // Calculate bonus from weapon's stat scaling
+  let bonus = 0;
+  if (item.strengthScaling) {
+    bonus += stats.strength * item.strengthScaling;
+  }
+  if (item.agilityScaling) {
+    bonus += stats.agility * item.agilityScaling;
+  }
+  if (item.precisionScaling) {
+    bonus += stats.precision * item.precisionScaling;
+  }
+
+  return Math.floor(bonus);
+}
+
+// Get the full damage range including stat bonuses from weapon scaling
+export function getDamageRange(actor: Actor): DamageRange {
+  const weaponRange = getWeaponDamageRange(actor);
+  const statBonus = getWeaponStatBonus(actor);
+
+  return {
+    min: weaponRange.min + statBonus,
+    max: weaponRange.max + statBonus,
+  };
+}
+
+// Roll damage using weapon range + stat bonus (scaling is defined on weapon)
+export function rollDamage(actor: Actor): number {
+  const range = getDamageRange(actor);
+  // Roll between min and max (inclusive)
+  return range.min + Math.floor(Math.random() * (range.max - range.min + 1));
+}
+
+// Legacy function - returns average damage for display purposes
 export function getEffectiveDamage(actor: Actor): number {
-  const statBonus = getMeleeDamageBonus(actor.levelInfo.stats);
-  return actor.damage + getEquipmentDamageBonus(actor) + statBonus;
+  const range = getDamageRange(actor);
+  return Math.floor((range.min + range.max) / 2);
 }
 
 // Reduces incoming damage based on armor

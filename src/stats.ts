@@ -289,7 +289,6 @@ export function calculateAttack(
     defenderArmorPenalty = 0,
     defenderBlockBonus = 0,
     defenderShieldArmor = 0,
-    isRanged = false,
   } = options;
 
   const attackerStats = attacker.levelInfo.stats;
@@ -300,13 +299,8 @@ export function calculateAttack(
   // Calculate Attack Rating
   const attackerAR = getAttackRating(attackerStats, attackerLevel, attackerWeaponAccuracy);
 
-  // Calculate damage first (needed for block calculations)
+  // baseDamage should already include weapon damage roll + stat bonuses
   let damage = baseDamage;
-  if (isRanged) {
-    damage += getRangedDamageBonus(attackerStats);
-  } else {
-    damage += getMeleeDamageBonus(attackerStats);
-  }
 
   // Critical hit check (done early to apply to blocked damage too)
   const critChance = getCritChance(attackerStats);

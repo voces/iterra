@@ -20,7 +20,10 @@ export const items: Record<string, ItemDef> = {
     tags: ['material', 'wood', 'foraged', 'weapon'],
     weight: 0.5,
     equipSlot: 'mainHand',
-    damageBonus: 2,
+    minDamage: 1,
+    maxDamage: 4,
+    strengthScaling: 0.3,
+    agilityScaling: 0.2,
     accuracy: 0, // Baseline
   },
   rocks: {
@@ -105,7 +108,10 @@ export const items: Record<string, ItemDef> = {
     tags: ['weapon', 'tool', 'crafted'],
     weight: 1.0,
     equipSlot: 'mainHand',
-    damageBonus: 5,
+    minDamage: 3,
+    maxDamage: 8,
+    strengthScaling: 0.5,
+    agilityScaling: 1.0, // Fast weapon benefits from agility
     accuracy: 15, // Fast, easy to land hits
   },
   stoneSpear: {
@@ -116,7 +122,10 @@ export const items: Record<string, ItemDef> = {
     tags: ['weapon', 'crafted'],
     weight: 2.5,
     equipSlot: 'mainHand',
-    damageBonus: 8,
+    minDamage: 5,
+    maxDamage: 12,
+    strengthScaling: 1.0, // Power weapon benefits from strength
+    agilityScaling: 0.5,
     accuracy: 5, // Reach helps, but slower
   },
   bow: {
@@ -128,7 +137,10 @@ export const items: Record<string, ItemDef> = {
     weight: 1.5,
     equipSlot: 'mainHand',
     twoHanded: true,
-    damageBonus: 6,
+    minDamage: 4,
+    maxDamage: 10,
+    precisionScaling: 1.0, // Ranged weapon benefits from precision
+    agilityScaling: 0.3, // Some benefit from agility for draw speed
     rangedBonus: 15, // Bonus vs fleeing, reduces incoming damage
     accuracy: 20, // Ranged precision weapon
   },

@@ -84,7 +84,12 @@ export interface ItemDef {
   // Equipment properties
   equipSlot?: EquipSlot;
   twoHanded?: boolean; // Takes both hand slots
-  damageBonus?: number;
+  minDamage?: number; // Weapon min damage (replaces actor base damage)
+  maxDamage?: number; // Weapon max damage
+  // Stat scaling - damage bonus per point of stat
+  strengthScaling?: number; // Melee weapons often scale with strength
+  agilityScaling?: number; // Light/fast weapons scale with agility
+  precisionScaling?: number; // Ranged weapons scale with precision
   armorBonus?: number; // Reduces damage taken
   rangedBonus?: number; // Bonus vs fleeing enemies, reduces damage taken
   accuracy?: number; // Weapon accuracy bonus/penalty to attack rating

@@ -4,7 +4,7 @@ import {
   canAffordAction,
   getTotalWeight,
   getSpeedModifier,
-  getEquipmentDamageBonus,
+  getDamageRange,
   getEquipmentArmorBonus,
   getEquipmentRangedBonus,
 } from './actor.ts';
@@ -249,12 +249,12 @@ export class UI {
     ];
 
     // Get total bonuses for display
-    const dmgBonus = getEquipmentDamageBonus(player);
+    const damageRange = getDamageRange(player);
     const armorBonus = getEquipmentArmorBonus(player);
     const rangedBonus = getEquipmentRangedBonus(player);
 
     const bonusDisplay = [];
-    if (dmgBonus > 0) bonusDisplay.push(`+${dmgBonus} Dmg`);
+    bonusDisplay.push(`${damageRange.min}-${damageRange.max} Dmg`);
     if (armorBonus > 0) bonusDisplay.push(`+${armorBonus} Armor`);
     if (rangedBonus > 0) bonusDisplay.push(`+${rangedBonus} Ranged`);
 

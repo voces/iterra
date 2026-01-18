@@ -13,7 +13,18 @@ import {
   getShieldBlockBonus,
   getShieldArmor,
 } from './actor.ts';
-import { calculateAttack } from './stats.ts';
+import { calculateAttack, getMeleeDamageBonus } from './stats.ts';
+
+// Roll enemy damage based on their base damage value
+// Creates a ±30% variance around base damage, plus stat bonuses
+function rollEnemyDamage(enemy: Actor): number {
+  const baseDamage = enemy.damage;
+  const variance = Math.floor(baseDamage * 0.3);
+  const minDamage = Math.max(1, baseDamage - variance);
+  const maxDamage = baseDamage + variance;
+  const statBonus = getMeleeDamageBonus(enemy.levelInfo.stats);
+  return minDamage + statBonus + Math.floor(Math.random() * (maxDamage - minDamage + 1));
+}
 
 export function createEncounter(enemy?: Actor, playerLevel: number = 1): Encounter {
   return {
@@ -80,7 +91,7 @@ export function getEnemyAction(
 
 function enemyAttack(encounter: Encounter, player: Actor): EnemyAction {
   const enemy = encounter.enemy;
-  const baseDamage = enemy.damage;
+  const baseDamage = rollEnemyDamage(enemy);
 
   // Get enemy weapon accuracy (enemies usually have none)
   const enemyWeaponAccuracy = getWeaponAccuracy(enemy);

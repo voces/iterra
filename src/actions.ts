@@ -7,7 +7,7 @@ import {
   removeItem,
   getItemCount,
   getEffectiveSpeed,
-  getEffectiveDamage,
+  rollDamage,
   getEquipmentRangedBonus,
   getEquipmentArmorBonus,
   applyArmor,
@@ -20,6 +20,7 @@ import { getItem } from './items.ts';
 import {
   calculateAttack,
   trackStatUsage,
+  getRangedDamageBonus,
 } from './stats.ts';
 
 // === Basic Actions ===
@@ -255,7 +256,7 @@ export const craftStoneKnife: Action = {
 
     return {
       success: true,
-      message: 'You craft a stone knife. Equip it for +5 damage!',
+      message: 'You craft a stone knife. A fast weapon that scales with agility!',
     };
   },
 };
@@ -279,7 +280,7 @@ export const craftStoneSpear: Action = {
 
     return {
       success: true,
-      message: 'You craft a stone spear. Equip it for +8 damage!',
+      message: 'You craft a stone spear. A powerful weapon that scales with strength!',
     };
   },
 };
@@ -531,8 +532,8 @@ export const attack: Action = {
     trackStatUsage(actor.levelInfo, 'strength', 1);
     trackStatUsage(actor.levelInfo, 'precision', 0.5);
 
-    // Get combat stats
-    const baseDamage = getEffectiveDamage(actor);
+    // Roll damage (weapon range + stat scaling)
+    const baseDamage = rollDamage(actor);
     const weaponAccuracy = getWeaponAccuracy(actor);
     const enemyDodgePenalty = getArmorDodgePenalty(enemy);
 
@@ -598,8 +599,11 @@ export const throwRock: Action = {
     trackStatUsage(actor.levelInfo, 'precision', 1);
     trackStatUsage(actor.levelInfo, 'agility', 0.3);
 
-    // Base damage for thrown rock
-    let baseDamage = 8;
+    // Roll damage for thrown rock (5-10 base, plus precision stat)
+    const rockMinDamage = 5;
+    const rockMaxDamage = 10;
+    const statBonus = getRangedDamageBonus(actor.levelInfo.stats);
+    let baseDamage = rockMinDamage + statBonus + Math.floor(Math.random() * (rockMaxDamage - rockMinDamage + 1));
     const rangedBonus = getEquipmentRangedBonus(actor);
     const fleeingBonus = context.encounter.enemyFleeing ? Math.floor(rangedBonus / 2) : 0;
     baseDamage += fleeingBonus;
@@ -673,8 +677,8 @@ export const rangedAttack: Action = {
     trackStatUsage(actor.levelInfo, 'precision', 1.5);
     trackStatUsage(actor.levelInfo, 'agility', 0.5);
 
-    // Calculate base damage with fleeing bonus
-    let baseDamage = getEffectiveDamage(actor);
+    // Roll damage (weapon range + stat scaling) with fleeing bonus
+    let baseDamage = rollDamage(actor);
     const rangedBonus = getEquipmentRangedBonus(actor);
     const fleeingBonus = context.encounter.enemyFleeing ? rangedBonus : 0;
     baseDamage += fleeingBonus;
