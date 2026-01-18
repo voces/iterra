@@ -985,6 +985,8 @@ export class Game {
     for (const action of available) {
       if (action.id === 'idle' || action.id === 'wander') {
         categories['Explore'].push(action);
+      } else if (action.id === 'exit-location' || action.id.startsWith('enter-location-')) {
+        categories['Explore'].push(action);
       } else if (action.tags.includes('gathering')) {
         categories['Gather'].push(action);
       } else if (action.tags.includes('consumption')) {
