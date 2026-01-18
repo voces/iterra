@@ -236,6 +236,74 @@ export function generateLoot(enemy: Actor, playerLuckBonus: number = 0): Invento
   return loot;
 }
 
+// Items that come from butchering (meat-related)
+const BUTCHERING_ITEMS = ['rawMeat', 'venomGland'];
+
+// Items that come from skinning (hide-related)
+const SKINNING_ITEMS = ['rawLeather'];
+
+// Check if an enemy can be butchered (has meat drops)
+export function canButcher(enemyId: string): boolean {
+  const template = enemyTemplates.find((t) => t.id === enemyId);
+  if (!template || template.usesInventory) return false;
+  return Object.keys(template.loot).some((itemId) => BUTCHERING_ITEMS.includes(itemId));
+}
+
+// Check if an enemy can be skinned (has hide drops)
+export function canSkin(enemyId: string): boolean {
+  const template = enemyTemplates.find((t) => t.id === enemyId);
+  if (!template || template.usesInventory) return false;
+  return Object.keys(template.loot).some((itemId) => SKINNING_ITEMS.includes(itemId));
+}
+
+// Generate butchering loot (meat-related items)
+export function generateButcheringLoot(
+  enemyId: string,
+  skillBonus: number = 0,
+  luckBonus: number = 0
+): Inventory {
+  const template = enemyTemplates.find((t) => t.id === enemyId);
+  if (!template || template.usesInventory) return {};
+
+  const loot: Inventory = {};
+  for (const [itemId, drop] of Object.entries(template.loot)) {
+    if (!BUTCHERING_ITEMS.includes(itemId)) continue;
+
+    if (Math.random() < drop.chance) {
+      // Base amount plus skill and luck bonuses
+      const baseAmount = Math.floor(Math.random() * (drop.max - drop.min + 1)) + drop.min;
+      const skillBonusAmount = Math.floor(baseAmount * skillBonus);
+      const luckBonusAmount = Math.floor(baseAmount * luckBonus);
+      loot[itemId] = baseAmount + skillBonusAmount + luckBonusAmount;
+    }
+  }
+  return loot;
+}
+
+// Generate skinning loot (hide-related items)
+export function generateSkinningLoot(
+  enemyId: string,
+  skillBonus: number = 0,
+  luckBonus: number = 0
+): Inventory {
+  const template = enemyTemplates.find((t) => t.id === enemyId);
+  if (!template || template.usesInventory) return {};
+
+  const loot: Inventory = {};
+  for (const [itemId, drop] of Object.entries(template.loot)) {
+    if (!SKINNING_ITEMS.includes(itemId)) continue;
+
+    if (Math.random() < drop.chance) {
+      // Base amount plus skill and luck bonuses
+      const baseAmount = Math.floor(Math.random() * (drop.max - drop.min + 1)) + drop.min;
+      const skillBonusAmount = Math.floor(baseAmount * skillBonus);
+      const luckBonusAmount = Math.floor(baseAmount * luckBonus);
+      loot[itemId] = baseAmount + skillBonusAmount + luckBonusAmount;
+    }
+  }
+  return loot;
+}
+
 export function getRandomEnemy(playerLevel: number = 1): Actor {
   // Weight enemy selection based on player level
   // At level 1-2: favor passive creatures (rabbit, deer)

@@ -36,7 +36,12 @@ export type CombatSkillType =
 export type CraftingSkillType =
   | 'crafting'; // General crafting (can subdivide later: weaponsmithing, armorsmithing, etc.)
 
-export type SkillType = CombatSkillType | CraftingSkillType;
+// Harvesting skills - improve with harvesting corpses
+export type HarvestingSkillType =
+  | 'butchering' // Extracting meat from corpses
+  | 'skinning'; // Extracting hides/leather from corpses
+
+export type SkillType = CombatSkillType | CraftingSkillType | HarvestingSkillType;
 
 export interface Skill {
   level: number; // 1-100
@@ -220,6 +225,14 @@ export interface Encounter {
   result?: 'victory' | 'defeat' | 'player_escaped' | 'enemy_escaped';
 }
 
+// Corpse that can be harvested for resources
+export interface PendingCorpse {
+  enemyId: string; // The template ID of the enemy
+  enemyName: string; // Display name
+  butchered: boolean; // Whether meat has been extracted
+  skinned: boolean; // Whether hide has been extracted
+}
+
 export interface GameState {
   player: Actor;
   turn: number;
@@ -227,7 +240,8 @@ export interface GameState {
   encounter: Encounter | null;
   availableNodes: Record<string, number>; // Node type ID -> count of available instances
   structures: Set<string>; // IDs of structures the player has built
-  pendingLoot: Inventory | null; // Loot waiting to be picked up
+  pendingLoot: Inventory | null; // Loot waiting to be picked up (for bandits, etc.)
+  pendingCorpse: PendingCorpse | null; // Corpse waiting to be harvested
   gameOver: boolean;
 }
 

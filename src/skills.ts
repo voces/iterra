@@ -10,6 +10,8 @@ export const SKILL_TYPES: SkillType[] = [
   'throwing',
   'shield',
   'crafting',
+  'butchering',
+  'skinning',
 ];
 
 export const COMBAT_SKILLS: SkillType[] = [
@@ -22,6 +24,8 @@ export const COMBAT_SKILLS: SkillType[] = [
 ];
 
 export const CRAFTING_SKILLS: SkillType[] = ['crafting'];
+
+export const HARVESTING_SKILLS: SkillType[] = ['butchering', 'skinning'];
 
 // XP scaling: XP needed = BASE_XP * level^XP_EXPONENT
 const BASE_SKILL_XP = 50;
@@ -38,6 +42,8 @@ export const SKILL_NAMES: Record<SkillType, string> = {
   throwing: 'Throwing',
   shield: 'Shield',
   crafting: 'Crafting',
+  butchering: 'Butchering',
+  skinning: 'Skinning',
 };
 
 export const SKILL_DESCRIPTIONS: Record<SkillType, string> = {
@@ -48,6 +54,8 @@ export const SKILL_DESCRIPTIONS: Record<SkillType, string> = {
   throwing: 'Throwing weapons accurately. Rocks, javelins, etc.',
   shield: 'Shield blocking effectiveness. Better block chance and reduction.',
   crafting: 'General crafting ability. Better quality items, fewer failures.',
+  butchering: 'Extracting meat from corpses. Higher yield and fewer failures.',
+  skinning: 'Extracting hides from corpses. Higher yield and fewer failures.',
 };
 
 // === Skill Creation ===
@@ -135,6 +143,24 @@ export function getCraftingFailureChance(skillLevel: number): number {
   return Math.max(0, baseFailure * (1 - reduction));
 }
 
+// === Harvesting Skill Effects ===
+
+// Harvesting failure chance based on skill level
+// At level 0: 30% failure chance
+// At level 100: 0% failure chance
+export function getHarvestingFailureChance(skillLevel: number): number {
+  const baseFailure = 0.3;
+  const reduction = skillLevel / 100; // 0 at level 0, 1 at level 100
+  return Math.max(0, baseFailure * (1 - reduction));
+}
+
+// Harvesting yield bonus based on skill level
+// At level 0: 0% bonus
+// At level 100: 100% bonus (double yield)
+export function getHarvestingYieldBonus(skillLevel: number): number {
+  return skillLevel / 100; // 0% at level 0, 100% at level 100
+}
+
 // Quality roll based on crafting skill
 // Returns the quality tier for a crafted item
 export function rollCraftingQuality(skillLevel: number): ItemQuality {
@@ -174,6 +200,10 @@ export const SKILL_XP_AWARDS = {
   // Crafting XP
   craftSuccess: 15,
   craftFailure: 5, // Still learn from failures
+
+  // Harvesting XP
+  harvestSuccess: 12,
+  harvestFailure: 4, // Still learn from failures
 };
 
 // Map weapon types to skills
