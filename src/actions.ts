@@ -1,5 +1,5 @@
 import type { Action, Actor, ActionContext } from './types.ts';
-import { dealDamage, isAlive, addSaturation, addItem, removeItem, getItemCount } from './actor.ts';
+import { dealDamage, isAlive, addSaturation, addItem, removeItem, getItemCount, getEffectiveSpeed } from './actor.ts';
 import { rollForResourceDiscovery, getResourceNode } from './resources.ts';
 import { getRecipe, canCraftRecipe, applyRecipe } from './recipes.ts';
 import { getItem } from './items.ts';
@@ -237,7 +237,9 @@ export const flee: Action = {
     }
 
     const enemy = context.encounter.enemy;
-    const speedRatio = actor.speed / enemy.speed;
+    const playerSpeed = getEffectiveSpeed(actor);
+    const enemySpeed = getEffectiveSpeed(enemy);
+    const speedRatio = playerSpeed / enemySpeed;
     const baseChance = 0.4;
     const fleeChance = Math.min(0.9, baseChance * speedRatio);
 
@@ -273,7 +275,9 @@ export const chase: Action = {
     }
 
     const enemy = context.encounter.enemy;
-    const speedRatio = actor.speed / enemy.speed;
+    const playerSpeed = getEffectiveSpeed(actor);
+    const enemySpeed = getEffectiveSpeed(enemy);
+    const speedRatio = playerSpeed / enemySpeed;
     const baseChance = 0.5;
     const catchChance = Math.min(0.85, baseChance * speedRatio);
 

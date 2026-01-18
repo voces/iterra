@@ -1,6 +1,6 @@
 import type { Action } from './types.ts';
 import type { Game } from './game.ts';
-import { canAffordAction } from './actor.ts';
+import { canAffordAction, getTotalWeight, getSpeedModifier } from './actor.ts';
 import { getItem } from './items.ts';
 
 export class UI {
@@ -12,6 +12,8 @@ export class UI {
     maxHealth: HTMLElement;
     saturationCount: HTMLElement;
     maxSaturation: HTMLElement;
+    weightCount: HTMLElement;
+    maxWeight: HTMLElement;
     inventoryList: HTMLElement;
     structuresPanel: HTMLElement;
     structuresList: HTMLElement;
@@ -36,6 +38,8 @@ export class UI {
       maxHealth: document.getElementById('max-health')!,
       saturationCount: document.getElementById('saturation-count')!,
       maxSaturation: document.getElementById('max-saturation')!,
+      weightCount: document.getElementById('weight-count')!,
+      maxWeight: document.getElementById('max-weight')!,
       inventoryList: document.getElementById('inventory-list')!,
       structuresPanel: document.getElementById('structures-panel')!,
       structuresList: document.getElementById('structures-list')!,
@@ -122,6 +126,13 @@ export class UI {
     this.elements.maxHealth.textContent = player.maxHealth.toString();
     this.elements.saturationCount.textContent = player.saturation.toString();
     this.elements.maxSaturation.textContent = player.maxSaturation.toString();
+
+    // Weight display with speed modifier indicator
+    const weight = getTotalWeight(player);
+    const speedMod = getSpeedModifier(player);
+    const speedIndicator = speedMod > 0 ? '+' : '';
+    this.elements.weightCount.textContent = weight.toFixed(1);
+    this.elements.maxWeight.textContent = `${player.carryCapacity} (${speedIndicator}${Math.round(speedMod)} spd)`;
   }
 
   private renderInventory(): void {

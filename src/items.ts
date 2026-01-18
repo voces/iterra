@@ -9,6 +9,7 @@ export const items: Record<string, ItemDef> = {
     description: 'Sweet, ripe berries. Can be eaten for sustenance.',
     stackable: true,
     tags: ['food', 'raw', 'foraged'],
+    weight: 0.1,
     saturationGain: 4,
   },
   sticks: {
@@ -17,6 +18,7 @@ export const items: Record<string, ItemDef> = {
     description: 'Dry wooden sticks. Useful for crafting.',
     stackable: true,
     tags: ['material', 'wood', 'foraged'],
+    weight: 0.5,
   },
   rocks: {
     id: 'rocks',
@@ -24,6 +26,7 @@ export const items: Record<string, ItemDef> = {
     description: 'Sturdy rocks. Useful for crafting and building.',
     stackable: true,
     tags: ['material', 'stone', 'foraged'],
+    weight: 2.0,
   },
 
   // Meat
@@ -33,7 +36,8 @@ export const items: Record<string, ItemDef> = {
     description: 'Raw meat from a slain creature. Should be cooked before eating.',
     stackable: true,
     tags: ['food', 'raw', 'meat'],
-    saturationGain: 2, // Can eat raw but not very filling
+    weight: 1.0,
+    saturationGain: 2,
   },
   cookedMeat: {
     id: 'cookedMeat',
@@ -41,6 +45,7 @@ export const items: Record<string, ItemDef> = {
     description: 'Well-cooked meat. Nutritious and filling.',
     stackable: true,
     tags: ['food', 'cooked', 'meat'],
+    weight: 1.0,
     saturationGain: 8,
   },
 };

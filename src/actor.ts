@@ -6,6 +6,7 @@ export function createActor(
   options: {
     maxTicks?: number;
     speed?: number;
+    carryCapacity?: number;
     maxHealth?: number;
     damage?: number;
     saturation?: number;
@@ -17,6 +18,7 @@ export function createActor(
   const {
     maxTicks = 10000,
     speed = 100,
+    carryCapacity = 30, // Default carry capacity in weight units
     maxHealth = 100,
     damage = 10,
     saturation = 10,
@@ -31,6 +33,7 @@ export function createActor(
     ticks: maxTicks,
     maxTicks,
     speed,
+    carryCapacity,
     health: maxHealth,
     maxHealth,
     damage,
@@ -138,4 +141,48 @@ export function transferInventory(from: Actor, to: Actor): void {
       addItem(to, itemId, amount);
     }
   }
+}
+
+// Weight system
+import { getItem } from './items.ts';
+
+export function getTotalWeight(actor: Actor): number {
+  let total = 0;
+  for (const [itemId, count] of Object.entries(actor.inventory)) {
+    if (count > 0) {
+      const item = getItem(itemId);
+      if (item) {
+        total += item.weight * count;
+      }
+    }
+  }
+  return total;
+}
+
+export function getLoadFactor(actor: Actor): number {
+  return getTotalWeight(actor) / actor.carryCapacity;
+}
+
+// Speed modifier based on load:
+// - Light load (0-50%): bonus up to +20 speed
+// - Normal load (50-100%): 0 modifier, linearly decreasing
+// - Overloaded (>100%): penalty of -25 per 50% over capacity
+export function getSpeedModifier(actor: Actor): number {
+  const loadFactor = getLoadFactor(actor);
+
+  if (loadFactor <= 0.5) {
+    // Light load: +20 at 0%, +0 at 50%
+    return 20 * (1 - loadFactor * 2);
+  } else if (loadFactor <= 1.0) {
+    // Normal to full: 0 modifier (linear from +0 at 50% to 0 at 100%)
+    return 0;
+  } else {
+    // Overloaded: -50 speed per 100% over capacity
+    const overload = loadFactor - 1.0;
+    return -50 * overload;
+  }
+}
+
+export function getEffectiveSpeed(actor: Actor): number {
+  return Math.max(10, actor.speed + getSpeedModifier(actor)); // Min speed of 10
 }

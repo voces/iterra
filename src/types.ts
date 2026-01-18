@@ -36,6 +36,7 @@ export interface ItemDef {
   stackable: boolean;
   maxStack?: number;
   tags: string[];
+  weight: number; // Weight per unit
   // Consumable properties
   saturationGain?: number;
   healthGain?: number;
@@ -76,7 +77,8 @@ export interface Actor {
   name: string;
   ticks: number;
   maxTicks: number;
-  speed: number;
+  speed: number; // Base speed
+  carryCapacity: number; // Max weight before penalties
   health: number;
   maxHealth: number;
   damage: number;

@@ -69,6 +69,15 @@ header h1 {
   color: var(--warning);
 }
 
+#weight-count {
+  color: var(--text-primary);
+}
+
+#max-weight {
+  color: var(--text-secondary);
+  font-size: 0.85em;
+}
+
 main {
   display: flex;
   flex-direction: column;

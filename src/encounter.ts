@@ -1,6 +1,6 @@
 import type { Actor, Encounter, ActionResult } from './types.ts';
 import { getRandomEnemy, getEnemyTemplate } from './enemies.ts';
-import { dealDamage, isAlive, addTicks } from './actor.ts';
+import { dealDamage, isAlive, addTicks, getEffectiveSpeed } from './actor.ts';
 
 export function createEncounter(enemy?: Actor): Encounter {
   return {
@@ -99,7 +99,9 @@ function enemyStartFlee(encounter: Encounter): EnemyAction {
 
 function enemyFleeAttempt(encounter: Encounter, player: Actor): EnemyAction {
   const enemy = encounter.enemy;
-  const speedRatio = enemy.speed / player.speed;
+  const enemySpeed = getEffectiveSpeed(enemy);
+  const playerSpeed = getEffectiveSpeed(player);
+  const speedRatio = enemySpeed / playerSpeed;
   const baseChance = 0.4;
   const fleeChance = Math.min(0.9, baseChance * speedRatio);
 
@@ -132,7 +134,9 @@ function enemyChaseDecision(encounter: Encounter, player: Actor): EnemyAction {
 
   if (Math.random() < chaseChance) {
     // Enemy chases
-    const speedRatio = enemy.speed / player.speed;
+    const enemySpeed = getEffectiveSpeed(enemy);
+    const playerSpeed = getEffectiveSpeed(player);
+    const speedRatio = enemySpeed / playerSpeed;
     const catchChance = Math.min(0.85, 0.5 * speedRatio);
 
     if (Math.random() < catchChance) {
