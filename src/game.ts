@@ -34,8 +34,10 @@ import {
   getHungerResistance,
   STAT_NAMES,
 } from './stats.ts';
+import { getLocation } from './locations.ts';
+import { createEnterLocationAction } from './actions.ts';
 
-export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end' | 'game-over' | 'level-up';
+export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end' | 'game-over' | 'level-up' | 'location-discovered' | 'location-entered' | 'location-exited' | 'exit-found';
 
 export type GameEventCallback = (game: Game) => void;
 
@@ -63,6 +65,11 @@ export class Game {
       structures: new Set(),
       pendingLoot: null,
       gameOver: false,
+      // Location system
+      currentLocation: null,
+      locationStack: [],
+      discoveredLocations: {},
+      foundExit: false,
     };
   }
 
@@ -120,6 +127,27 @@ export class Game {
     if (result.foundResource) {
       const nodeId = result.foundResource;
       this.state.availableNodes[nodeId] = (this.state.availableNodes[nodeId] ?? 0) + 1;
+    }
+
+    // Handle location discovery
+    if (result.foundLocation) {
+      this.discoverLocation(result.foundLocation);
+    }
+
+    // Handle exit discovery
+    if (result.foundExit) {
+      this.findExit();
+    }
+
+    // Handle location exit action
+    if (action.id === 'exit-location' && result.success) {
+      this.exitLocation();
+    }
+
+    // Handle location enter actions
+    if (action.id.startsWith('enter-location-') && result.success) {
+      const locationId = action.id.replace('enter-location-', '');
+      this.enterLocation(locationId);
     }
 
     // Handle resource depletion after gathering
@@ -303,6 +331,12 @@ export class Game {
   }
 
   private checkForEncounter(chance: number = 0.25): void {
+    // No encounters in safe locations
+    const locationInfo = this.getCurrentLocation();
+    if (locationInfo.isSafe) {
+      return;
+    }
+
     if (Math.random() < chance) {
       this.startEncounter();
     }
@@ -310,7 +344,8 @@ export class Game {
 
   startEncounter(enemy?: ReturnType<typeof getRandomEnemy>): void {
     const playerLevel = this.state.player.levelInfo.level;
-    const encounter = createEncounter(enemy, playerLevel);
+    const locationId = this.state.currentLocation;
+    const encounter = createEncounter(enemy, playerLevel, locationId);
     this.state.encounter = encounter;
 
     const enemyLevel = encounter.enemy.levelInfo.level;
@@ -607,7 +642,15 @@ export class Game {
   }
 
   getAvailableActions(): Action[] {
-    const actions = this.state.player.actions;
+    // Start with player's base actions
+    let actions = [...this.state.player.actions];
+
+    // Add dynamic enter location actions for discovered locations
+    const enterableLocations = this.getEnterableLocations();
+    for (const loc of enterableLocations) {
+      actions.push(createEnterLocationAction(loc.id, loc.name));
+    }
+
     const inCombat = this.state.encounter !== null;
     const enemyFleeing = this.state.encounter?.enemyFleeing ?? false;
     const player = this.state.player;
@@ -718,6 +761,22 @@ export class Game {
 
       // Can't wander with a placed campfire
       if (action.id === 'wander' && this.state.structures.has('campfire')) {
+        return false;
+      }
+
+      // Exit location only available when in a location with found exit
+      if (action.id === 'exit-location') {
+        if (this.state.currentLocation === null || !this.state.foundExit) {
+          return false;
+        }
+        // Can't exit with a placed campfire
+        if (this.state.structures.has('campfire')) {
+          return false;
+        }
+      }
+
+      // Enter location actions require no campfire
+      if (action.id.startsWith('enter-location-') && this.state.structures.has('campfire')) {
         return false;
       }
 
@@ -893,5 +952,147 @@ export class Game {
     return Object.entries(categories)
       .filter(([_, actions]) => actions.length > 0)
       .map(([category, actions]) => ({ category, actions }));
+  }
+
+  // === Location System ===
+
+  // Discover a new location (add to discovered but don't enter)
+  discoverLocation(locationId: string): void {
+    const location = getLocation(locationId);
+    if (!location) return;
+
+    if (!this.state.discoveredLocations[locationId]) {
+      this.state.discoveredLocations[locationId] = {
+        locationId,
+        entrances: 1,
+      };
+    } else {
+      this.state.discoveredLocations[locationId].entrances++;
+    }
+
+    this.log(location.discoveryMessage);
+    this.emit('location-discovered');
+  }
+
+  // Enter a discovered location
+  enterLocation(locationId: string): boolean {
+    const location = getLocation(locationId);
+    if (!location) {
+      this.log('Unknown location.');
+      return false;
+    }
+
+    const discovered = this.state.discoveredLocations[locationId];
+    if (!discovered || discovered.entrances <= 0) {
+      this.log(`You haven't found an entrance to ${location.name}.`);
+      return false;
+    }
+
+    // Check if this location's parent matches current location
+    if (location.parentId !== (this.state.currentLocation ?? undefined)) {
+      this.log(`You can't reach ${location.name} from here.`);
+      return false;
+    }
+
+    // Use up one entrance
+    discovered.entrances--;
+    if (discovered.entrances <= 0) {
+      delete this.state.discoveredLocations[locationId];
+    }
+
+    // Push current location to stack (if not wilderness)
+    if (this.state.currentLocation !== null) {
+      this.state.locationStack.push(this.state.currentLocation);
+    }
+
+    this.state.currentLocation = locationId;
+    this.state.foundExit = false;
+    // Clear resource nodes when entering new location
+    this.state.availableNodes = {};
+
+    this.log(`You enter ${location.name}.`);
+    this.emit('location-entered');
+    return true;
+  }
+
+  // Exit the current location (requires having found an exit)
+  exitLocation(): boolean {
+    if (this.state.currentLocation === null) {
+      this.log('You are already in the wilderness.');
+      return false;
+    }
+
+    if (!this.state.foundExit) {
+      this.log("You haven't found a way out yet. Keep exploring!");
+      return false;
+    }
+
+    const currentLocation = getLocation(this.state.currentLocation);
+    const previousLocation = this.state.locationStack.pop() ?? null;
+
+    this.state.currentLocation = previousLocation;
+    this.state.foundExit = false;
+    // Clear resource nodes when exiting
+    this.state.availableNodes = {};
+
+    if (previousLocation === null) {
+      this.log(`You exit ${currentLocation?.name ?? 'the location'} and return to the wilderness.`);
+    } else {
+      const prevLoc = getLocation(previousLocation);
+      this.log(`You exit ${currentLocation?.name ?? 'the location'} and return to ${prevLoc?.name ?? 'the previous area'}.`);
+    }
+
+    this.emit('location-exited');
+    return true;
+  }
+
+  // Mark that an exit has been found in the current location
+  findExit(): void {
+    if (this.state.currentLocation === null) {
+      return; // Can't find exit from wilderness
+    }
+
+    this.state.foundExit = true;
+    const location = getLocation(this.state.currentLocation);
+    this.log(`You find an exit from ${location?.name ?? 'this location'}!`);
+    this.emit('exit-found');
+  }
+
+  // Get current location info
+  getCurrentLocation(): { id: string | null; name: string; isSafe: boolean } {
+    if (this.state.currentLocation === null) {
+      return { id: null, name: 'Wilderness', isSafe: false };
+    }
+
+    const location = getLocation(this.state.currentLocation);
+    return {
+      id: this.state.currentLocation,
+      name: location?.name ?? 'Unknown',
+      isSafe: location?.isSafe ?? false,
+    };
+  }
+
+  // Get list of locations that can be entered from current position
+  getEnterableLocations(): Array<{ id: string; name: string; entrances: number }> {
+    const result: Array<{ id: string; name: string; entrances: number }> = [];
+
+    for (const [locationId, discovered] of Object.entries(this.state.discoveredLocations)) {
+      if (discovered.entrances <= 0) continue;
+
+      const location = getLocation(locationId);
+      if (!location) continue;
+
+      // Check if this location can be entered from current position
+      const parentId = location.parentId ?? null;
+      if (parentId !== this.state.currentLocation) continue;
+
+      result.push({
+        id: locationId,
+        name: location.name,
+        entrances: discovered.entrances,
+      });
+    }
+
+    return result;
   }
 }

@@ -48,6 +48,12 @@ export class UI {
     gameOverPanel: HTMLElement;
     restartButton: HTMLElement;
     skillsList: HTMLElement;
+    locationPanel: HTMLElement;
+    locationIcon: HTMLElement;
+    locationName: HTMLElement;
+    locationDetails: HTMLElement;
+    exitStatus: HTMLElement;
+    discoveredLocations: HTMLElement;
   };
 
   constructor(game: Game) {
@@ -85,6 +91,12 @@ export class UI {
       gameOverPanel: document.getElementById('game-over-panel')!,
       restartButton: document.getElementById('restart-button')!,
       skillsList: document.getElementById('skills-list')!,
+      locationPanel: document.getElementById('location-panel')!,
+      locationIcon: document.getElementById('location-icon')!,
+      locationName: document.getElementById('location-name')!,
+      locationDetails: document.getElementById('location-details')!,
+      exitStatus: document.getElementById('exit-status')!,
+      discoveredLocations: document.getElementById('discovered-locations')!,
     };
 
     this.setupEventListeners();
@@ -168,6 +180,7 @@ export class UI {
       this.renderStructures();
       this.renderEncounter();
       this.renderLoot();
+      this.renderLocation();
       this.renderActions();
     });
     this.game.on('log', () => this.renderLog());
@@ -186,6 +199,22 @@ export class UI {
     this.game.on('game-over', () => {
       this.renderGameOver();
     });
+    this.game.on('location-entered', () => {
+      this.renderLocation();
+      this.renderActions();
+    });
+    this.game.on('location-exited', () => {
+      this.renderLocation();
+      this.renderActions();
+    });
+    this.game.on('location-discovered', () => {
+      this.renderLocation();
+      this.renderActions();
+    });
+    this.game.on('exit-found', () => {
+      this.renderLocation();
+      this.renderActions();
+    });
   }
 
   private renderGameOver(): void {
@@ -201,6 +230,7 @@ export class UI {
     this.renderStructures();
     this.renderEncounter();
     this.renderLoot();
+    this.renderLocation();
     this.renderActions();
     this.renderLog();
   }
@@ -462,6 +492,57 @@ export class UI {
     });
 
     this.elements.structuresList.innerHTML = items.join('');
+  }
+
+  private renderLocation(): void {
+    const locationInfo = this.game.getCurrentLocation();
+    const foundExit = this.game.state.foundExit;
+    const enterableLocations = this.game.getEnterableLocations();
+
+    // Update location name
+    this.elements.locationName.textContent = locationInfo.name;
+
+    // Update icon based on location type
+    if (locationInfo.id === null) {
+      this.elements.locationIcon.textContent = '🌲'; // Wilderness
+    } else if (locationInfo.isSafe) {
+      this.elements.locationIcon.textContent = '🏠'; // Safe location
+    } else {
+      this.elements.locationIcon.textContent = '⚔️'; // Dangerous location
+    }
+
+    // Show details if we're in a location or have discovered locations
+    const hasDetails = locationInfo.id !== null || enterableLocations.length > 0;
+
+    if (hasDetails) {
+      this.elements.locationDetails.classList.remove('hidden');
+
+      // Exit status
+      if (locationInfo.id !== null) {
+        if (foundExit) {
+          this.elements.exitStatus.innerHTML = '<span class="exit-found">✓ Exit found</span>';
+        } else {
+          this.elements.exitStatus.innerHTML = '<span class="exit-searching">Searching for exit...</span>';
+        }
+      } else {
+        this.elements.exitStatus.innerHTML = '';
+      }
+
+      // Discovered locations
+      if (enterableLocations.length > 0) {
+        const locList = enterableLocations
+          .map((loc) => {
+            const entranceText = loc.entrances > 1 ? ` (×${loc.entrances})` : '';
+            return `<span class="discovered-location">→ ${loc.name}${entranceText}</span>`;
+          })
+          .join('');
+        this.elements.discoveredLocations.innerHTML = locList;
+      } else {
+        this.elements.discoveredLocations.innerHTML = '';
+      }
+    } else {
+      this.elements.locationDetails.classList.add('hidden');
+    }
   }
 
   private renderLoot(): void {

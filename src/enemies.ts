@@ -1,6 +1,7 @@
 import type { Actor, LootTable, Inventory, Stats, EnemyStatGrowth } from './types.ts';
 import { createActor } from './actor.ts';
 import { createEmptyStats } from './stats.ts';
+import { getLocation } from './locations.ts';
 
 export interface EnemyTemplate {
   id: string;
@@ -236,7 +237,28 @@ export function generateLoot(enemy: Actor, playerLuckBonus: number = 0): Invento
   return loot;
 }
 
-export function getRandomEnemy(playerLevel: number = 1): Actor {
+// Get available enemies for a location
+export function getAvailableEnemies(locationId: string | null): EnemyTemplate[] {
+  if (locationId === null) {
+    // Wilderness - all enemies available
+    return enemyTemplates;
+  }
+
+  const location = getLocation(locationId);
+  if (!location || !location.availableEnemies || location.availableEnemies.length === 0) {
+    // No specific enemies defined - use all
+    return enemyTemplates;
+  }
+
+  return location.availableEnemies
+    .map((id) => enemyTemplates.find((t) => t.id === id))
+    .filter((t): t is EnemyTemplate => t !== undefined);
+}
+
+export function getRandomEnemy(playerLevel: number = 1, locationId: string | null = null): Actor {
+  // Get enemies available in this location
+  const availableInLocation = getAvailableEnemies(locationId);
+
   // Weight enemy selection based on player level
   // At level 1-2: favor passive creatures (rabbit, deer)
   // At level 3+: more balanced selection
@@ -244,10 +266,10 @@ export function getRandomEnemy(playerLevel: number = 1): Actor {
 
   if (playerLevel <= 2) {
     // Early game: 50% passive, 50% aggressive
-    const passiveCreatures = enemyTemplates.filter(
+    const passiveCreatures = availableInLocation.filter(
       (t) => t.id === 'rabbit' || t.id === 'deer'
     );
-    const aggressiveCreatures = enemyTemplates.filter(
+    const aggressiveCreatures = availableInLocation.filter(
       (t) => t.id !== 'rabbit' && t.id !== 'deer' && t.statGrowth.baseLevel <= playerLevel
     );
 
@@ -256,16 +278,21 @@ export function getRandomEnemy(playerLevel: number = 1): Actor {
     } else if (aggressiveCreatures.length > 0) {
       weightedTemplates = aggressiveCreatures;
     } else {
-      weightedTemplates = passiveCreatures.length > 0 ? passiveCreatures : enemyTemplates;
+      weightedTemplates = passiveCreatures.length > 0 ? passiveCreatures : availableInLocation;
     }
   } else {
     // Later game: filter by base level
-    weightedTemplates = enemyTemplates.filter(
+    weightedTemplates = availableInLocation.filter(
       (t) => t.statGrowth.baseLevel <= playerLevel
     );
     if (weightedTemplates.length === 0) {
-      weightedTemplates = enemyTemplates;
+      weightedTemplates = availableInLocation;
     }
+  }
+
+  // Fallback if no enemies available
+  if (weightedTemplates.length === 0) {
+    weightedTemplates = enemyTemplates;
   }
 
   const template = weightedTemplates[Math.floor(Math.random() * weightedTemplates.length)];

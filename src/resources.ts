@@ -1,4 +1,5 @@
 import type { ResourceNodeDef } from './types.ts';
+import { getLocation } from './locations.ts';
 
 // Resource node registry - things you can find and gather from
 export const resourceNodes: Record<string, ResourceNodeDef> = {
@@ -52,9 +53,27 @@ export function getAllResourceNodes(): ResourceNodeDef[] {
   return Object.values(resourceNodes);
 }
 
+// Get available resources for a location
+export function getAvailableResources(locationId: string | null): ResourceNodeDef[] {
+  if (locationId === null) {
+    // Wilderness - all resources available
+    return getAllResourceNodes();
+  }
+
+  const location = getLocation(locationId);
+  if (!location || !location.availableResources || location.availableResources.length === 0) {
+    // No specific resources defined - use all
+    return getAllResourceNodes();
+  }
+
+  return location.availableResources
+    .map((id) => getResourceNode(id))
+    .filter((node): node is ResourceNodeDef => node !== undefined);
+}
+
 // Roll for resource discovery while wandering
-export function rollForResourceDiscovery(): ResourceNodeDef | null {
-  const nodes = getAllResourceNodes();
+export function rollForResourceDiscovery(locationId: string | null = null): ResourceNodeDef | null {
+  const nodes = getAvailableResources(locationId);
   let cumulative = 0;
   const roll = Math.random();
 
