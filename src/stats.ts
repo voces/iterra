@@ -200,9 +200,13 @@ export function calculateHitChance(
   attackerLevel: number,
   defenderLevel: number
 ): number {
+  // Add 1 to levels so level 0 functions (effective level 1 for combat)
+  const effAttackerLevel = attackerLevel + 1;
+  const effDefenderLevel = defenderLevel + 1;
+
   // Level factor: 2 * alvl / (alvl + dlvl)
   // This gives 1.0 when levels equal, higher when attacker > defender
-  const levelFactor = (2 * attackerLevel) / (attackerLevel + defenderLevel);
+  const levelFactor = (2 * effAttackerLevel) / (effAttackerLevel + effDefenderLevel);
 
   // Base AR vs DR calculation
   const baseChance = attackerAR / (attackerAR + defenderDR);
