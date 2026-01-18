@@ -607,9 +607,13 @@ export const attack: Action = {
     const enemyDodgePenalty = getArmorDodgePenalty(enemy);
 
     // Use new AR vs DR combat system
+    const attackerSkillLevel = actor.skills[weaponSkill].level;
+    const defenderShieldSkillLevel = enemy.skills?.shield?.level ?? 0;
     const result = calculateAttack(actor, enemy, baseDamage, {
       attackerWeaponAccuracy: weaponAccuracy,
+      attackerSkillLevel,
       defenderArmorPenalty: enemyDodgePenalty,
+      defenderShieldSkillLevel,
       isRanged: false,
     });
 
@@ -686,9 +690,13 @@ export const throwRock: Action = {
     const enemyDodgePenalty = getArmorDodgePenalty(enemy);
 
     // Use new AR vs DR combat system (thrown rock has some accuracy bonus)
+    const attackerSkillLevel = actor.skills.throwing.level;
+    const defenderShieldSkillLevel = enemy.skills?.shield?.level ?? 0;
     const result = calculateAttack(actor, enemy, baseDamage, {
       attackerWeaponAccuracy: 5, // Small bonus for thrown projectile
+      attackerSkillLevel,
       defenderArmorPenalty: enemyDodgePenalty,
+      defenderShieldSkillLevel,
       isRanged: true,
     });
 
@@ -769,9 +777,13 @@ export const rangedAttack: Action = {
     const enemyDodgePenalty = getArmorDodgePenalty(enemy);
 
     // Use new AR vs DR combat system
+    const attackerSkillLevel = actor.skills.archery.level;
+    const defenderShieldSkillLevel = enemy.skills?.shield?.level ?? 0;
     const result = calculateAttack(actor, enemy, baseDamage, {
       attackerWeaponAccuracy: weaponAccuracy,
+      attackerSkillLevel,
       defenderArmorPenalty: enemyDodgePenalty,
+      defenderShieldSkillLevel,
       isRanged: true,
     });
 

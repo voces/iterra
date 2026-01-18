@@ -1,4 +1,5 @@
 import type { Stats, StatType, StatUsage, LevelInfo, Actor } from './types.ts';
+import { getSkillAttackRating, getSkillDodgeRating, getSkillDamageBonus } from './skills.ts';
 
 // === Constants ===
 
@@ -276,9 +277,11 @@ export interface AttackResult {
 
 export interface AttackOptions {
   attackerWeaponAccuracy?: number;
+  attackerSkillLevel?: number; // Weapon skill level for AR bonus
   defenderArmorPenalty?: number;
   defenderBlockBonus?: number;
   defenderShieldArmor?: number;
+  defenderShieldSkillLevel?: number; // Shield skill level for DR bonus
   isRanged?: boolean;
 }
 
@@ -290,9 +293,11 @@ export function calculateAttack(
 ): AttackResult {
   const {
     attackerWeaponAccuracy = 0,
+    attackerSkillLevel = 0,
     defenderArmorPenalty = 0,
     defenderBlockBonus = 0,
     defenderShieldArmor = 0,
+    defenderShieldSkillLevel = 0,
   } = options;
 
   const attackerStats = attacker.levelInfo.stats;
@@ -300,11 +305,14 @@ export function calculateAttack(
   const attackerLevel = attacker.levelInfo.level;
   const defenderLevel = defender.levelInfo.level;
 
-  // Calculate Attack Rating
-  const attackerAR = getAttackRating(attackerStats, attackerLevel, attackerWeaponAccuracy);
+  // Calculate Attack Rating (includes weapon skill bonus)
+  const skillAR = getSkillAttackRating(attackerSkillLevel);
+  const attackerAR = getAttackRating(attackerStats, attackerLevel, attackerWeaponAccuracy + skillAR);
 
   // baseDamage should already include weapon damage roll + stat bonuses
-  let damage = baseDamage;
+  // Apply skill damage bonus
+  const damageBonus = 1 + getSkillDamageBonus(attackerSkillLevel);
+  let damage = Math.floor(baseDamage * damageBonus);
 
   // Critical hit check (done early to apply to blocked damage too)
   const critChance = getCritChance(attackerStats);
@@ -317,7 +325,9 @@ export function calculateAttack(
   // If defender has a shield, check for block first
   // Block reduces damage but doesn't avoid it entirely
   if (defenderBlockBonus > 0) {
-    const blockRating = getBlockRating(defenderStats, defenderLevel, defenderBlockBonus);
+    // Shield skill adds to block rating
+    const skillBlockBonus = getSkillDodgeRating(defenderShieldSkillLevel);
+    const blockRating = getBlockRating(defenderStats, defenderLevel, defenderBlockBonus + skillBlockBonus);
     const blockChance = calculateBlockChance(blockRating, attackerAR);
 
     if (Math.random() < blockChance) {
