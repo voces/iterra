@@ -168,6 +168,7 @@ export interface ResourceNodeDef {
   discoveryChance: number; // Chance to find while wandering
   discoveryMessage: string;
   depletionChance: number; // Chance node depletes after gathering
+  dropOffChance: number; // Chance to lose this node when wandering
 }
 
 // Crafting recipe definitions
@@ -224,7 +225,7 @@ export interface GameState {
   turn: number;
   log: LogEntry[];
   encounter: Encounter | null;
-  availableNodes: Set<string>; // IDs of resource nodes currently available to gather
+  availableNodes: Record<string, number>; // Node type ID -> count of available instances
   structures: Set<string>; // IDs of structures the player has built
   pendingLoot: Inventory | null; // Loot waiting to be picked up
   gameOver: boolean;

@@ -58,7 +58,7 @@ export class Game {
       turn: 0,
       log: [],
       encounter: null,
-      availableNodes: new Set(),
+      availableNodes: {}, // Node type ID -> count
       structures: new Set(),
       pendingLoot: null,
       gameOver: false,
@@ -115,9 +115,10 @@ export class Game {
     this.state.turn++;
     this.log(result.message);
 
-    // Handle resource discovery
+    // Handle resource discovery (increment count)
     if (result.foundResource) {
-      this.state.availableNodes.add(result.foundResource);
+      const nodeId = result.foundResource;
+      this.state.availableNodes[nodeId] = (this.state.availableNodes[nodeId] ?? 0) + 1;
     }
 
     // Handle resource depletion after gathering
@@ -136,9 +137,16 @@ export class Game {
         this.processEnemyTurns();
       }
     } else {
-      // Random encounter chance when wandering (if no berries found)
+      // Process node drop-off when wandering
+      if (action.id === 'wander') {
+        this.processNodeDropOff();
+      }
+
+      // Random encounter chance - higher when wandering, small chance on any action
       if (action.id === 'wander' && !result.foundResource) {
-        this.checkForEncounter();
+        this.checkForEncounter(0.25); // 25% when wandering without finding resources
+      } else if (!action.tags.includes('combat')) {
+        this.checkForEncounter(0.03); // 3% on any other non-combat action
       }
     }
 
@@ -255,15 +263,65 @@ export class Game {
     const node = getResourceNode(nodeId);
     if (!node) return;
 
+    const count = this.state.availableNodes[nodeId] ?? 0;
+    if (count <= 0) return;
+
     if (Math.random() < node.depletionChance) {
-      this.state.availableNodes.delete(nodeId);
-      this.log(`The ${node.name.toLowerCase()} is now depleted.`);
+      this.state.availableNodes[nodeId] = count - 1;
+      if (this.state.availableNodes[nodeId] <= 0) {
+        delete this.state.availableNodes[nodeId];
+        this.log(`The last ${node.name.toLowerCase()} is now depleted.`);
+      } else {
+        this.log(`A ${node.name.toLowerCase()} is now depleted. (${this.state.availableNodes[nodeId]} remaining)`);
+      }
     }
   }
 
-  private checkForEncounter(): void {
-    const encounterChance = 0.25; // 25% when wandering without finding resources
-    if (Math.random() < encounterChance) {
+  private processNodeDropOff(): void {
+    // Each node instance has a chance to drop off when wandering
+    const nodesToRemove: { nodeId: string; count: number }[] = [];
+
+    for (const [nodeId, count] of Object.entries(this.state.availableNodes)) {
+      if (count <= 0) continue;
+
+      const node = getResourceNode(nodeId);
+      if (!node) continue;
+
+      // Check each instance independently
+      let lost = 0;
+      for (let i = 0; i < count; i++) {
+        if (Math.random() < node.dropOffChance) {
+          lost++;
+        }
+      }
+
+      if (lost > 0) {
+        nodesToRemove.push({ nodeId, count: lost });
+      }
+    }
+
+    // Apply removals
+    for (const { nodeId, count } of nodesToRemove) {
+      const node = getResourceNode(nodeId);
+      const current = this.state.availableNodes[nodeId] ?? 0;
+      const newCount = current - count;
+
+      if (newCount <= 0) {
+        delete this.state.availableNodes[nodeId];
+        this.log(`You've lost track of the ${node?.name.toLowerCase()}.`);
+      } else {
+        this.state.availableNodes[nodeId] = newCount;
+        if (count === 1) {
+          this.log(`You've lost track of a ${node?.name.toLowerCase()}. (${newCount} remaining)`);
+        } else {
+          this.log(`You've lost track of ${count} ${node?.name.toLowerCase()}s. (${newCount} remaining)`);
+        }
+      }
+    }
+  }
+
+  private checkForEncounter(chance: number = 0.25): void {
+    if (Math.random() < chance) {
       this.startEncounter();
     }
   }
@@ -612,9 +670,9 @@ export class Game {
         return false;
       }
 
-      // Check gathering requirements
+      // Check gathering requirements (need at least one node)
       const gatherNode = gatheringRequirements[action.id];
-      if (gatherNode && !this.state.availableNodes.has(gatherNode)) {
+      if (gatherNode && (this.state.availableNodes[gatherNode] ?? 0) <= 0) {
         return false;
       }
 

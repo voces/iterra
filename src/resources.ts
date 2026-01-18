@@ -10,6 +10,7 @@ export const resourceNodes: Record<string, ResourceNodeDef> = {
     discoveryChance: 0.2,
     discoveryMessage: 'You stumble upon a bush laden with ripe berries!',
     depletionChance: 0.6,
+    dropOffChance: 0.15, // Berries are fragile, easy to lose track of
   },
   fallenBranches: {
     id: 'fallenBranches',
@@ -19,6 +20,7 @@ export const resourceNodes: Record<string, ResourceNodeDef> = {
     discoveryChance: 0.2,
     discoveryMessage: 'You find some fallen branches on the ground.',
     depletionChance: 0.5,
+    dropOffChance: 0.1,
   },
   rockyOutcrop: {
     id: 'rockyOutcrop',
@@ -28,6 +30,7 @@ export const resourceNodes: Record<string, ResourceNodeDef> = {
     discoveryChance: 0.15,
     discoveryMessage: 'You notice some useful rocks nearby.',
     depletionChance: 0.4,
+    dropOffChance: 0.05, // Rocks are easy to remember
   },
   tallGrass: {
     id: 'tallGrass',
@@ -37,6 +40,7 @@ export const resourceNodes: Record<string, ResourceNodeDef> = {
     discoveryChance: 0.2,
     discoveryMessage: 'You find a patch of tall grass.',
     depletionChance: 0.5,
+    dropOffChance: 0.12,
   },
 };
 
