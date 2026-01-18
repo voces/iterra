@@ -37,6 +37,10 @@ export function createEncounter(enemy?: Actor, playerLevel: number = 1): Encount
     enemyFleeing: false,
     aggressiveness: baseAggressiveness,
     ended: false,
+    projectilesUsed: {
+      arrows: { hit: 0, dodged: 0, blocked: 0, missed: 0 },
+      rocks: { hit: 0, dodged: 0, blocked: 0, missed: 0 },
+    },
   };
 }
 
@@ -320,6 +324,16 @@ export function handlePlayerActionResult(
     encounter.aggressiveness = Math.max(0, encounter.aggressiveness - AGGRESSION_DECREASE_ON_IDLE);
   }
 
+  // Track projectile usage for recovery calculation
+  if (result.projectileUsed) {
+    const { type, outcome } = result.projectileUsed;
+    if (type === 'arrow') {
+      encounter.projectilesUsed.arrows[outcome]++;
+    } else if (type === 'rock') {
+      encounter.projectilesUsed.rocks[outcome]++;
+    }
+  }
+
   // If enemy is fleeing and player didn't use chase, enemy auto-escapes
   // (unless the attack was a kill shot)
   if (encounter.enemyFleeing && !actionInfo?.isChase && !result.encounterEnded) {
@@ -336,4 +350,72 @@ export function handlePlayerActionResult(
       endEncounter(encounter, 'enemy_escaped');
     }
   }
+}
+
+// Recovery chances based on projectile outcome
+// Hit: 100% of base (retrievable from enemy)
+// Blocked: 90% of base (might be slightly damaged)
+// Dodged: 70% of base (went past, might be found)
+// Missed: 60% of base (harder to locate)
+const OUTCOME_RECOVERY_MULTIPLIER = {
+  hit: 1.0,
+  blocked: 0.9,
+  dodged: 0.7,
+  missed: 0.6,
+};
+
+// Base recovery chances
+const ROCK_BASE_RECOVERY = 0.95; // 95% base recovery for rocks
+const ARROW_BASE_RECOVERY = 0.60; // 60% base recovery for arrows
+const ENEMY_ESCAPED_ARROW_PENALTY = 0.25; // Arrows drop by 75% if enemy escapes
+
+export interface ProjectileRecovery {
+  arrows: number;
+  rocks: number;
+}
+
+/**
+ * Calculate how many projectiles can be recovered after combat.
+ * Recovery depends on whether the enemy was defeated or escaped,
+ * and on the outcome of each shot (hit, dodged, blocked, missed).
+ */
+export function calculateProjectileRecovery(encounter: Encounter): ProjectileRecovery {
+  const enemyEscaped = encounter.result === 'enemy_escaped';
+  const { arrows, rocks } = encounter.projectilesUsed;
+
+  let recoveredArrows = 0;
+  let recoveredRocks = 0;
+
+  // Calculate arrow recovery
+  for (const [outcome, count] of Object.entries(arrows) as [keyof typeof OUTCOME_RECOVERY_MULTIPLIER, number][]) {
+    if (count <= 0) continue;
+    let recoveryChance = ARROW_BASE_RECOVERY * OUTCOME_RECOVERY_MULTIPLIER[outcome];
+
+    // If enemy escaped, arrow recovery is much harder
+    if (enemyEscaped) {
+      recoveryChance *= ENEMY_ESCAPED_ARROW_PENALTY;
+    }
+
+    // Roll for each arrow
+    for (let i = 0; i < count; i++) {
+      if (Math.random() < recoveryChance) {
+        recoveredArrows++;
+      }
+    }
+  }
+
+  // Calculate rock recovery (not affected by enemy escaping - rocks are easier to find)
+  for (const [outcome, count] of Object.entries(rocks) as [keyof typeof OUTCOME_RECOVERY_MULTIPLIER, number][]) {
+    if (count <= 0) continue;
+    const recoveryChance = ROCK_BASE_RECOVERY * OUTCOME_RECOVERY_MULTIPLIER[outcome];
+
+    // Roll for each rock
+    for (let i = 0; i < count; i++) {
+      if (Math.random() < recoveryChance) {
+        recoveredRocks++;
+      }
+    }
+  }
+
+  return { arrows: recoveredArrows, rocks: recoveredRocks };
 }
