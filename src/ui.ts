@@ -85,9 +85,15 @@ export class UI {
     const player = this.game.state.player;
     const affordable = canAffordAction(player, action);
 
-    const costDisplay = action.tickGain
-      ? `+${action.tickGain} ticks`
-      : `${action.tickCost} ticks`;
+    let costDisplay: string;
+    if (action.tickGain && action.tickCost) {
+      const net = action.tickGain - action.tickCost;
+      costDisplay = `${action.tickCost} cost, +${net} net`;
+    } else if (action.tickGain) {
+      costDisplay = `+${action.tickGain} ticks`;
+    } else {
+      costDisplay = `${action.tickCost} ticks`;
+    }
 
     return `
       <div class="action-item ${affordable ? '' : 'disabled'}" data-action-id="${action.id}">

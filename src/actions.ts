@@ -4,12 +4,12 @@ export const idle: Action = {
   id: 'idle',
   name: 'Idle',
   description: 'Rest and recover ticks.',
-  tickCost: 0,
-  tickGain: 5,
+  tickCost: 1,
+  tickGain: 2,
   tags: ['basic', 'recovery'],
   execute: (_actor: Actor) => ({
     success: true,
-    message: 'You rest, recovering 5 ticks.',
+    message: 'You rest, recovering some energy.',
   }),
 };
 
