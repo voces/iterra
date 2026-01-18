@@ -875,29 +875,9 @@ export const chase: Action = {
   },
 };
 
-export const letGo: Action = {
-  id: 'let-go',
-  name: 'Let Go',
-  description: 'Allow the enemy to escape.',
-  tickCost: 50,
-  tags: ['combat'],
-  execute: (_actor: Actor, context?: ActionContext) => {
-    if (!context?.encounter) {
-      return { success: false, message: 'Nothing to let go.' };
-    }
-
-    const enemy = context.encounter.enemy;
-    return {
-      success: true,
-      message: `You let the ${enemy.name} flee.`,
-      encounterEnded: true,
-    };
-  },
-};
-
 // === Action Collections ===
 
-export const combatActions: Action[] = [attack, throwRock, rangedAttack, flee, chase, letGo];
+export const combatActions: Action[] = [attack, throwRock, rangedAttack, flee, chase];
 export const gatheringActions: Action[] = [gatherBerries, gatherSticks, gatherRocks, gatherFiber];
 export const craftingActions: Action[] = [
   craftCampfire,

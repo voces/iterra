@@ -216,6 +216,7 @@ export interface Encounter {
   enemy: Actor;
   playerFleeing: boolean;
   enemyFleeing: boolean;
+  playerHasAttacked: boolean; // Track if player attacked (makes passive creatures aggressive)
   ended: boolean;
   result?: 'victory' | 'defeat' | 'player_escaped' | 'enemy_escaped';
 }

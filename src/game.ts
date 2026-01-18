@@ -22,6 +22,7 @@ import {
   processEnemyTurn,
   handlePlayerActionResult,
   endEncounter,
+  type PlayerActionInfo,
 } from './encounter.ts';
 import { getRandomEnemy, generateLoot, getXpReward } from './enemies.ts';
 import { getResourceNode } from './resources.ts';
@@ -128,7 +129,12 @@ export class Game {
 
     // Handle encounter-specific results
     if (this.state.encounter) {
-      handlePlayerActionResult(this.state.encounter, result, player);
+      // Determine action type for flee/chase logic
+      const isAttack = action.tags.includes('offensive');
+      const isChase = action.id === 'chase';
+      const actionInfo: PlayerActionInfo = { isAttack, isChase };
+
+      handlePlayerActionResult(this.state.encounter, result, player, actionInfo);
 
       if (this.state.encounter.ended) {
         this.endCurrentEncounter();
@@ -641,11 +647,6 @@ export class Game {
         return false;
       }
 
-      // Let go only available when enemy is fleeing
-      if (action.id === 'let-go' && !enemyFleeing) {
-        return false;
-      }
-
       // Can't flee if already fleeing (waiting for enemy response)
       if (action.id === 'flee' && this.state.encounter?.playerFleeing) {
         return false;
@@ -732,7 +733,6 @@ export class Game {
       if (action.id === 'ranged-attack' && player.equipment.mainHand === 'bow') score += 95;
       if (action.id === 'throw-rock') score += 70;
       if (action.id === 'chase' && enemyFleeing) score += 90;
-      if (action.id === 'let-go' && enemyFleeing) score += 60;
       return score;
     }
 
