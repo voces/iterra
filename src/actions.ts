@@ -230,6 +230,246 @@ export const cookMeat: Action = {
   },
 };
 
+export const craftStoneKnife: Action = {
+  id: 'craft-stone-knife',
+  name: 'Craft Stone Knife',
+  description: 'Craft a stone knife. (2 rocks, 1 stick)',
+  tickCost: 250,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    const recipe = getRecipe('stoneKnife')!;
+    const structures = context?.game?.structures ?? new Set();
+    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
+
+    if (!canCraft) {
+      return { success: false, message: reason! };
+    }
+
+    applyRecipe(recipe, actor.inventory);
+
+    return {
+      success: true,
+      message: 'You craft a stone knife. Equip it for +5 damage!',
+    };
+  },
+};
+
+export const craftStoneSpear: Action = {
+  id: 'craft-stone-spear',
+  name: 'Craft Stone Spear',
+  description: 'Craft a stone spear. (1 rock, 3 sticks, 2 fiber)',
+  tickCost: 300,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    const recipe = getRecipe('stoneSpear')!;
+    const structures = context?.game?.structures ?? new Set();
+    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
+
+    if (!canCraft) {
+      return { success: false, message: reason! };
+    }
+
+    applyRecipe(recipe, actor.inventory);
+
+    return {
+      success: true,
+      message: 'You craft a stone spear. Equip it for +8 damage!',
+    };
+  },
+};
+
+export const craftBow: Action = {
+  id: 'craft-bow',
+  name: 'Craft Bow',
+  description: 'Craft a bow. (3 sticks, 5 fiber)',
+  tickCost: 400,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    const recipe = getRecipe('bow')!;
+    const structures = context?.game?.structures ?? new Set();
+    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
+
+    if (!canCraft) {
+      return { success: false, message: reason! };
+    }
+
+    applyRecipe(recipe, actor.inventory);
+
+    return {
+      success: true,
+      message: 'You craft a bow. Equip it and craft arrows to shoot!',
+    };
+  },
+};
+
+export const craftArrows: Action = {
+  id: 'craft-arrows',
+  name: 'Craft Arrows',
+  description: 'Craft 5 arrows. (2 sticks, 1 rock)',
+  tickCost: 150,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    const recipe = getRecipe('arrow')!;
+    const structures = context?.game?.structures ?? new Set();
+    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
+
+    if (!canCraft) {
+      return { success: false, message: reason! };
+    }
+
+    applyRecipe(recipe, actor.inventory);
+
+    return {
+      success: true,
+      message: `You craft 5 arrows. (${getItemCount(actor, 'arrow')} total)`,
+    };
+  },
+};
+
+export const craftWoodenShield: Action = {
+  id: 'craft-wooden-shield',
+  name: 'Craft Wooden Shield',
+  description: 'Craft a wooden shield. (6 sticks, 3 fiber)',
+  tickCost: 350,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    const recipe = getRecipe('woodenShield')!;
+    const structures = context?.game?.structures ?? new Set();
+    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
+
+    if (!canCraft) {
+      return { success: false, message: reason! };
+    }
+
+    applyRecipe(recipe, actor.inventory);
+
+    return {
+      success: true,
+      message: 'You craft a wooden shield. Equip it for +5 armor!',
+    };
+  },
+};
+
+export const processLeather: Action = {
+  id: 'process-leather',
+  name: 'Process Leather',
+  description: 'Process raw leather at campfire. (2 raw leather)',
+  tickCost: 300,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    const recipe = getRecipe('leather')!;
+    const structures = context?.game?.structures ?? new Set();
+    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
+
+    if (!canCraft) {
+      return { success: false, message: reason! };
+    }
+
+    applyRecipe(recipe, actor.inventory);
+
+    return {
+      success: true,
+      message: `You process the leather. (${getItemCount(actor, 'leather')} leather)`,
+    };
+  },
+};
+
+export const craftLeatherHelm: Action = {
+  id: 'craft-leather-helm',
+  name: 'Craft Leather Helm',
+  description: 'Craft a leather helmet. (2 leather)',
+  tickCost: 200,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    const recipe = getRecipe('leatherHelm')!;
+    const structures = context?.game?.structures ?? new Set();
+    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
+
+    if (!canCraft) {
+      return { success: false, message: reason! };
+    }
+
+    applyRecipe(recipe, actor.inventory);
+
+    return {
+      success: true,
+      message: 'You craft a leather helm. Equip it for +3 armor!',
+    };
+  },
+};
+
+export const craftLeatherChest: Action = {
+  id: 'craft-leather-chest',
+  name: 'Craft Leather Chest',
+  description: 'Craft a leather chestpiece. (4 leather)',
+  tickCost: 300,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    const recipe = getRecipe('leatherChest')!;
+    const structures = context?.game?.structures ?? new Set();
+    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
+
+    if (!canCraft) {
+      return { success: false, message: reason! };
+    }
+
+    applyRecipe(recipe, actor.inventory);
+
+    return {
+      success: true,
+      message: 'You craft a leather chestpiece. Equip it for +6 armor!',
+    };
+  },
+};
+
+export const craftLeatherLegs: Action = {
+  id: 'craft-leather-legs',
+  name: 'Craft Leather Leggings',
+  description: 'Craft leather leggings. (3 leather)',
+  tickCost: 250,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    const recipe = getRecipe('leatherLegs')!;
+    const structures = context?.game?.structures ?? new Set();
+    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
+
+    if (!canCraft) {
+      return { success: false, message: reason! };
+    }
+
+    applyRecipe(recipe, actor.inventory);
+
+    return {
+      success: true,
+      message: 'You craft leather leggings. Equip them for +4 armor!',
+    };
+  },
+};
+
+export const craftLeatherBoots: Action = {
+  id: 'craft-leather-boots',
+  name: 'Craft Leather Boots',
+  description: 'Craft leather boots. (2 leather)',
+  tickCost: 200,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    const recipe = getRecipe('leatherBoots')!;
+    const structures = context?.game?.structures ?? new Set();
+    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
+
+    if (!canCraft) {
+      return { success: false, message: reason! };
+    }
+
+    applyRecipe(recipe, actor.inventory);
+
+    return {
+      success: true,
+      message: 'You craft leather boots. Equip them for +2 armor!',
+    };
+  },
+};
+
 // === Consumption Actions ===
 
 function createEatAction(itemId: string, actionId: string, name: string, tickCost: number): Action {
@@ -485,7 +725,22 @@ export const letGo: Action = {
 
 export const combatActions: Action[] = [attack, throwRock, rangedAttack, flee, chase, letGo];
 export const gatheringActions: Action[] = [gatherBerries, gatherSticks, gatherRocks, gatherFiber];
-export const craftingActions: Action[] = [craftCampfire, placeCampfire, pickupCampfire, cookMeat];
+export const craftingActions: Action[] = [
+  craftCampfire,
+  placeCampfire,
+  pickupCampfire,
+  cookMeat,
+  craftStoneKnife,
+  craftStoneSpear,
+  craftBow,
+  craftArrows,
+  craftWoodenShield,
+  processLeather,
+  craftLeatherHelm,
+  craftLeatherChest,
+  craftLeatherLegs,
+  craftLeatherBoots,
+];
 export const consumptionActions: Action[] = [eatBerries, eatCookedMeat, eatRawMeat];
 
 export const initialPlayerActions: Action[] = [

@@ -512,6 +512,16 @@ export class Game {
       'place-campfire': { requiresNoCampfire: true, requiresItems: { campfire: 1 } },
       'pickup-campfire': { requiresCampfire: true },
       'cook-meat': { requiresCampfire: true, requiresItems: { rawMeat: 1 } },
+      'craft-stone-knife': { requiresItems: { rocks: 2, sticks: 1 } },
+      'craft-stone-spear': { requiresItems: { rocks: 1, sticks: 3, fiber: 2 } },
+      'craft-bow': { requiresItems: { sticks: 3, fiber: 5 } },
+      'craft-arrows': { requiresItems: { sticks: 2, rocks: 1 } },
+      'craft-wooden-shield': { requiresItems: { sticks: 6, fiber: 3 } },
+      'process-leather': { requiresCampfire: true, requiresItems: { rawLeather: 2 } },
+      'craft-leather-helm': { requiresItems: { leather: 2 } },
+      'craft-leather-chest': { requiresItems: { leather: 4 } },
+      'craft-leather-legs': { requiresItems: { leather: 3 } },
+      'craft-leather-boots': { requiresItems: { leather: 2 } },
     };
 
     return actions.filter((action) => {
