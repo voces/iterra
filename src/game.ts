@@ -22,6 +22,7 @@ import {
   processEnemyTurn,
   handlePlayerActionResult,
   endEncounter,
+  calculateProjectileRecovery,
 } from './encounter.ts';
 import { getRandomEnemy, generateLoot, getXpReward, getEnemyTemplate, canButcher, canSkin } from './enemies.ts';
 import { getResourceNode } from './resources.ts';
@@ -412,6 +413,7 @@ export class Game {
         }
 
         this.handleEnemyDeath(enemy);
+        this.recoverProjectiles();
         break;
       case 'defeat':
         this.log('You have been defeated...');
@@ -423,6 +425,7 @@ export class Game {
         break;
       case 'enemy_escaped':
         this.log(`The ${enemy.name} got away.`);
+        this.recoverProjectiles();
         break;
     }
 
@@ -455,6 +458,28 @@ export class Game {
       if (canBeButchered) actions.push('butcher');
       if (canBeSkinned) actions.push('skin');
       this.log(`The ${enemy.name}'s corpse can be ${actions.join(' and ')}.`);
+    }
+  }
+
+  private recoverProjectiles(): void {
+    if (!this.state.encounter) return;
+
+    const recovery = calculateProjectileRecovery(this.state.encounter);
+    const player = this.state.player;
+    const messages: string[] = [];
+
+    if (recovery.arrows > 0) {
+      addItem(player, 'arrow', recovery.arrows);
+      messages.push(`${recovery.arrows} arrow${recovery.arrows > 1 ? 's' : ''}`);
+    }
+
+    if (recovery.rocks > 0) {
+      addItem(player, 'rocks', recovery.rocks);
+      messages.push(`${recovery.rocks} rock${recovery.rocks > 1 ? 's' : ''}`);
+    }
+
+    if (messages.length > 0) {
+      this.log(`Recovered: ${messages.join(', ')}`);
     }
   }
 

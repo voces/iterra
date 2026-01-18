@@ -19,6 +19,11 @@ export interface ActionResult {
   encounterEnded?: boolean;
   fled?: boolean;
   foundResource?: string;
+  // Projectile outcome for recovery tracking
+  projectileUsed?: {
+    type: 'arrow' | 'rock';
+    outcome: 'hit' | 'dodged' | 'blocked' | 'missed';
+  };
 }
 
 // === Skills System ===
@@ -47,6 +52,7 @@ export interface Skill {
   level: number; // 1-100
   xp: number;
   xpToNextLevel: number;
+  lastGainedAt: number; // Turn number when XP was last gained (-1 if never)
 }
 
 export type Skills = Record<SkillType, Skill>;
@@ -217,12 +223,26 @@ export interface Actor {
   skills: Skills;
 }
 
+// Tracks projectile usage during combat for recovery calculation
+export interface ProjectileOutcome {
+  hit: number;
+  dodged: number;
+  blocked: number;
+  missed: number;
+}
+
+export interface ProjectileTracking {
+  arrows: ProjectileOutcome;
+  rocks: ProjectileOutcome;
+}
+
 export interface Encounter {
   enemy: Actor;
   playerFleeing: boolean;
   enemyFleeing: boolean;
   ended: boolean;
   result?: 'victory' | 'defeat' | 'player_escaped' | 'enemy_escaped';
+  projectilesUsed: ProjectileTracking;
 }
 
 // Corpse that can be harvested for resources
