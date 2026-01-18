@@ -32,6 +32,7 @@ const REGEN_AMOUNT = 2;
 const REGEN_SATURATION_COST = 1;
 const PASS_OUT_TICK_GAIN = 500;
 const PASS_OUT_HEALTH_COST = 10;
+const HUNGER_DECAY_RATE = 1; // Saturation lost per turn
 
 export class Game {
   state: GameState;
@@ -130,10 +131,13 @@ export class Game {
       }
     }
 
+    // Hunger decay
+    this.processHunger();
+
     // Health regeneration when overfull
     this.processRegen();
 
-    // Starvation damage when saturation too low
+    // Starvation damage when saturation is 0
     this.processStarvation();
 
     // Pass out if can't afford any action
@@ -141,6 +145,11 @@ export class Game {
 
     this.emit('turn');
     return true;
+  }
+
+  private processHunger(): void {
+    const player = this.state.player;
+    drainSaturation(player, HUNGER_DECAY_RATE);
   }
 
   private processRegen(): void {
