@@ -1,11 +1,13 @@
 import type { RecipeDef, Inventory, ItemQuality, ItemInstance, Actor } from './types.ts';
+import { QUALITY_BREAKAGE_THRESHOLD, getQualityName } from './types.ts';
 import {
   getCraftingFailureChance,
-  rollCraftingQuality,
+  rollQualityValue,
   addSkillXp,
   SKILL_XP_AWARDS,
 } from './skills.ts';
-import { createItemInstance, canHaveQuality } from './items.ts';
+import { createItemInstanceWithQuality, canHaveQuality } from './items.ts';
+import { removeItemsWithQuality, addItemWithQuality } from './actor.ts';
 
 // Recipe registry - crafting recipes
 export const recipes: Record<string, RecipeDef> = {
@@ -167,12 +169,13 @@ export function applyRecipe(recipe: RecipeDef, inventory: Inventory): void {
 export interface CraftResult {
   success: boolean;
   failed: boolean; // True if crafting attempt failed (materials lost)
+  broken: boolean; // True if materials broke due to low quality
   message: string;
-  craftedItems?: { itemId: string; quality: ItemQuality; instance?: ItemInstance }[];
+  craftedItems?: { itemId: string; quality: ItemQuality; qualityValue: number; instance?: ItemInstance }[];
   skillGain?: { levelsGained: number; newLevel: number };
 }
 
-// Attempt crafting with skill checks
+// Attempt crafting with skill checks and material quality
 export function attemptCraft(
   recipe: RecipeDef,
   actor: Actor,
@@ -183,58 +186,93 @@ export function attemptCraft(
   // First check if we can craft at all
   const { canCraft, reason } = canCraftRecipe(recipe, inventory, structures);
   if (!canCraft) {
-    return { success: false, failed: false, message: reason! };
+    return { success: false, failed: false, broken: false, message: reason! };
   }
 
   const craftingSkill = actor.skills.crafting;
   const skillLevel = craftingSkill.level;
 
-  // Check for failure
-  const failureChance = getCraftingFailureChance(skillLevel);
-  const failed = Math.random() < failureChance;
-
-  // Consume inputs regardless of success/failure
+  // Consume inputs and collect their quality values
+  const consumedQualities: number[] = [];
   for (const [itemId, amount] of Object.entries(recipe.inputs)) {
-    inventory[itemId] = (inventory[itemId] ?? 0) - amount;
+    const qualities = removeItemsWithQuality(actor, itemId, amount);
+    if (qualities) {
+      consumedQualities.push(...qualities);
+    }
+    // Also update the plain inventory (for backwards compatibility)
+    inventory[itemId] = actor.inventory[itemId] ?? 0;
   }
 
-  // Award XP (less for failure)
-  const xpAmount = failed ? SKILL_XP_AWARDS.craftFailure : SKILL_XP_AWARDS.craftSuccess;
+  // Calculate average material quality
+  const avgMaterialQuality = consumedQualities.length > 0
+    ? consumedQualities.reduce((sum, q) => sum + q, 0) / consumedQualities.length
+    : 50; // Default quality if no tracking
+
+  // Check for breakage - if any material is below threshold, craft fails
+  const lowestQuality = consumedQualities.length > 0 ? Math.min(...consumedQualities) : 50;
+  const broken = lowestQuality < QUALITY_BREAKAGE_THRESHOLD;
+
+  // Award XP (less for failure/breakage)
+  const xpAmount = broken
+    ? SKILL_XP_AWARDS.craftFailure
+    : SKILL_XP_AWARDS.craftSuccess;
   const skillGain = addSkillXp(craftingSkill, xpAmount, turn);
+
+  if (broken) {
+    const qualityName = getQualityName(lowestQuality);
+    return {
+      success: false,
+      failed: true,
+      broken: true,
+      message: `Crafting failed! ${qualityName} quality materials broke apart. (+${xpAmount} crafting XP)`,
+      skillGain,
+    };
+  }
+
+  // Check for skill-based failure
+  const failureChance = getCraftingFailureChance(skillLevel);
+  const failed = Math.random() < failureChance;
 
   if (failed) {
     return {
       success: false,
       failed: true,
+      broken: false,
       message: `Crafting failed! Materials were lost. (+${xpAmount} crafting XP)`,
       skillGain,
     };
   }
 
-  // Roll quality and create output items
+  // Roll quality based on skill, influenced by material quality
+  // Output quality = weighted average of skill roll and material quality
+  const skillQuality = rollQualityValue(skillLevel);
+  // Material quality contributes 40% to final quality
+  const outputQuality = Math.round(skillQuality * 0.6 + avgMaterialQuality * 0.4);
+
   const craftedItems: CraftResult['craftedItems'] = [];
 
   for (const [itemId, amount] of Object.entries(recipe.outputs)) {
-    // Roll quality once per item type (not per item)
-    const quality = canHaveQuality(itemId) ? rollCraftingQuality(skillLevel) : 'normal';
-
     for (let i = 0; i < amount; i++) {
       if (canHaveQuality(itemId)) {
-        const instance = createItemInstance(itemId, quality);
-        craftedItems.push({ itemId, quality, instance });
+        const instance = createItemInstanceWithQuality(itemId, outputQuality);
+        craftedItems.push({ itemId, quality: instance.quality, qualityValue: outputQuality, instance });
+        // Store in equipment instances when equipped (handled elsewhere)
       } else {
-        craftedItems.push({ itemId, quality: 'normal' });
+        // For stackable output items (like arrows), add with quality
+        addItemWithQuality(actor, itemId, 1, outputQuality);
+        craftedItems.push({ itemId, quality: 'normal', qualityValue: outputQuality });
       }
     }
 
-    // Add to inventory (quality items tracked separately)
+    // Update plain inventory count
     inventory[itemId] = (inventory[itemId] ?? 0) + amount;
   }
 
   return {
     success: true,
     failed: false,
-    message: buildCraftSuccessMessage(craftedItems, xpAmount),
+    broken: false,
+    message: buildCraftSuccessMessage(craftedItems, xpAmount, outputQuality),
     craftedItems,
     skillGain,
   };
@@ -242,12 +280,10 @@ export function attemptCraft(
 
 function buildCraftSuccessMessage(
   items: CraftResult['craftedItems'],
-  xpGained: number
+  xpGained: number,
+  qualityValue: number
 ): string {
   if (!items || items.length === 0) return 'Crafted successfully!';
-
-  const firstItem = items[0];
-  const quality = firstItem.quality;
 
   // Count by item type
   const itemCounts = new Map<string, number>();
@@ -259,9 +295,10 @@ function buildCraftSuccessMessage(
     .map(([itemId, cnt]) => (cnt > 1 ? `${cnt}x ${itemId}` : itemId))
     .join(', ');
 
+  const qualityName = getQualityName(qualityValue);
   let qualityText = '';
-  if (quality !== 'normal') {
-    qualityText = ` (${quality.charAt(0).toUpperCase() + quality.slice(1)} quality!)`;
+  if (qualityName !== 'Normal') {
+    qualityText = ` (${qualityName} quality!)`;
   }
 
   return `Crafted ${itemDescriptions}${qualityText} (+${xpGained} crafting XP)`;

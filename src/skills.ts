@@ -150,7 +150,31 @@ export function getHarvestingYieldBonus(skillLevel: number): number {
   return skillLevel / (skillLevel + 100);
 }
 
-// Quality roll based on crafting skill (diminishing returns)
+// Roll continuous quality value (0-100) based on skill level
+// Uses diminishing returns for skill effect
+// Base quality range shifts up with skill, with random variance
+export function rollQualityValue(skillLevel: number): number {
+  // Use diminishing returns: t approaches 1 as skill increases
+  // At level 0: t=0, level 100: t=0.5, level 200: t=0.67, level 400: t=0.8
+  const t = skillLevel / (skillLevel + 100);
+
+  // Base quality increases with skill (0-70 range based on skill)
+  const baseQuality = t * 70;
+
+  // Random variance (±15 at low skill, ±10 at high skill)
+  const variance = 15 - 5 * t;
+  const randomOffset = (Math.random() - 0.5) * 2 * variance;
+
+  // Small chance for exceptional quality (lucky roll)
+  const luckyBonus = Math.random() < 0.05 ? 10 + Math.random() * 10 : 0;
+
+  // Clamp to 0-100 range
+  const quality = Math.max(0, Math.min(100, baseQuality + randomOffset + luckyBonus));
+
+  return Math.round(quality);
+}
+
+// Legacy: Quality roll based on crafting skill (diminishing returns)
 // Returns the quality tier for a crafted item
 export function rollCraftingQuality(skillLevel: number): ItemQuality {
   const roll = Math.random() * 100;

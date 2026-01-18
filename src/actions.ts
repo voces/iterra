@@ -1,9 +1,11 @@
 import type { Action, Actor, ActionContext } from './types.ts';
+import { getQualityName } from './types.ts';
 import {
   dealDamage,
   isAlive,
   addSaturation,
   addItem,
+  addItemWithQuality,
   removeItem,
   getItemCount,
   getEffectiveSpeed,
@@ -27,6 +29,7 @@ import {
   getWeaponSkill,
   getHarvestingFailureChance,
   getHarvestingYieldBonus,
+  rollQualityValue,
   SKILL_XP_AWARDS,
 } from './skills.ts';
 import {
@@ -596,9 +599,13 @@ export const butcher: Action = {
     const luckBonus = getLootBonus(actor.levelInfo.stats);
     const loot = generateButcheringLoot(corpse.enemyId, skillBonus, luckBonus);
 
-    // Add loot to inventory
+    // Roll quality based on skill
+    const quality = rollQualityValue(skill.level);
+    const qualityName = getQualityName(quality);
+
+    // Add loot to inventory with quality
     for (const [itemId, amount] of Object.entries(loot)) {
-      addItem(actor, itemId, amount);
+      addItemWithQuality(actor, itemId, amount, quality);
     }
 
     // Mark as butchered
@@ -608,16 +615,17 @@ export const butcher: Action = {
     const skillGain = addSkillXp(skill, SKILL_XP_AWARDS.harvestSuccess);
     const levelUpText = skillGain.levelsGained > 0 ? ' Butchering leveled up!' : '';
 
-    // Build loot message
+    // Build loot message with quality
     const lootMessages = Object.entries(loot).map(([itemId, amount]) => {
       const item = getItem(itemId);
       return `${amount} ${item?.name ?? itemId}`;
     });
     const lootText = lootMessages.length > 0 ? lootMessages.join(', ') : 'nothing';
+    const qualityText = qualityName !== 'Normal' ? ` (${qualityName} quality)` : '';
 
     return {
       success: true,
-      message: `You butcher the ${corpse.enemyName} and obtain ${lootText}.${levelUpText}`,
+      message: `You butcher the ${corpse.enemyName} and obtain ${lootText}${qualityText}.${levelUpText}`,
     };
   },
 };
@@ -665,9 +673,13 @@ export const skin: Action = {
     const luckBonus = getLootBonus(actor.levelInfo.stats);
     const loot = generateSkinningLoot(corpse.enemyId, skillBonus, luckBonus);
 
-    // Add loot to inventory
+    // Roll quality based on skill
+    const quality = rollQualityValue(skill.level);
+    const qualityName = getQualityName(quality);
+
+    // Add loot to inventory with quality
     for (const [itemId, amount] of Object.entries(loot)) {
-      addItem(actor, itemId, amount);
+      addItemWithQuality(actor, itemId, amount, quality);
     }
 
     // Mark as skinned
@@ -677,16 +689,17 @@ export const skin: Action = {
     const skillGain = addSkillXp(skill, SKILL_XP_AWARDS.harvestSuccess);
     const levelUpText = skillGain.levelsGained > 0 ? ' Skinning leveled up!' : '';
 
-    // Build loot message
+    // Build loot message with quality
     const lootMessages = Object.entries(loot).map(([itemId, amount]) => {
       const item = getItem(itemId);
       return `${amount} ${item?.name ?? itemId}`;
     });
     const lootText = lootMessages.length > 0 ? lootMessages.join(', ') : 'nothing';
+    const qualityText = qualityName !== 'Normal' ? ` (${qualityName} quality)` : '';
 
     return {
       success: true,
-      message: `You skin the ${corpse.enemyName} and obtain ${lootText}.${levelUpText}`,
+      message: `You skin the ${corpse.enemyName} and obtain ${lootText}${qualityText}.${levelUpText}`,
     };
   },
 };
