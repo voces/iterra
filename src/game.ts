@@ -32,7 +32,7 @@ const REGEN_AMOUNT = 2;
 const REGEN_SATURATION_COST = 1;
 const PASS_OUT_TICK_GAIN = 500;
 const PASS_OUT_HEALTH_COST = 10;
-const HUNGER_DECAY_CHANCE = 0.25; // 25% chance to lose 1 saturation per turn
+const HUNGER_DECAY_CHANCE = 0.1; // 10% chance to lose 1 saturation per turn
 
 export class Game {
   state: GameState;
@@ -247,7 +247,7 @@ export class Game {
   }
 
   private checkForEncounter(): void {
-    const encounterChance = 0.35; // 35% when wandering without finding resources
+    const encounterChance = 0.25; // 25% when wandering without finding resources
     if (Math.random() < encounterChance) {
       this.startEncounter();
     }
