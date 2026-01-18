@@ -26,7 +26,6 @@ export const CRAFTING_SKILLS: SkillType[] = ['crafting'];
 // XP scaling: XP needed = BASE_XP * level^XP_EXPONENT
 const BASE_SKILL_XP = 50;
 const SKILL_XP_EXPONENT = 1.3;
-const MAX_SKILL_LEVEL = 100;
 
 // === Skill Display Names ===
 
@@ -57,6 +56,7 @@ export function createSkill(level: number = 0): Skill {
     level,
     xp: 0,
     xpToNextLevel: calculateSkillXpForLevel(level + 1),
+    lastGainedAt: -1,
   };
 }
 
@@ -79,26 +79,16 @@ export interface SkillGainResult {
   newLevel: number;
 }
 
-export function addSkillXp(skill: Skill, amount: number): SkillGainResult {
-  if (skill.level >= MAX_SKILL_LEVEL) {
-    return { levelsGained: 0, newLevel: skill.level };
-  }
-
+export function addSkillXp(skill: Skill, amount: number, turn: number = 0): SkillGainResult {
   skill.xp += amount;
+  skill.lastGainedAt = turn;
   let levelsGained = 0;
 
-  while (skill.xp >= skill.xpToNextLevel && skill.level < MAX_SKILL_LEVEL) {
+  while (skill.xp >= skill.xpToNextLevel) {
     skill.xp -= skill.xpToNextLevel;
     skill.level++;
     skill.xpToNextLevel = calculateSkillXpForLevel(skill.level + 1);
     levelsGained++;
-  }
-
-  // Cap at max level
-  if (skill.level >= MAX_SKILL_LEVEL) {
-    skill.level = MAX_SKILL_LEVEL;
-    skill.xp = 0;
-    skill.xpToNextLevel = 0;
   }
 
   return { levelsGained, newLevel: skill.level };
@@ -107,53 +97,54 @@ export function addSkillXp(skill: Skill, amount: number): SkillGainResult {
 // === Skill Bonuses ===
 
 // Combat skill bonuses (per skill level)
-// These are additive bonuses based on skill level
+// These are additive bonuses to ratings, not percentages
 
-// Hit chance bonus: 0.5% per level (up to 50% at level 100)
-export function getSkillHitBonus(skillLevel: number): number {
-  return skillLevel * 0.005;
+// Attack Rating bonus: +1 AR per skill level
+export function getSkillAttackRating(skillLevel: number): number {
+  return skillLevel;
 }
 
-// Damage bonus: 1% per level (up to 100% at level 100)
+// Damage bonus: 1% per level (multiplicative)
 export function getSkillDamageBonus(skillLevel: number): number {
   return skillLevel * 0.01;
 }
 
-// Block bonus: 0.3% per level (up to 30% at level 100)
-export function getSkillBlockBonus(skillLevel: number): number {
-  return skillLevel * 0.003;
+// Dodge Rating bonus for shield skill: +1 DR per skill level
+export function getSkillDodgeRating(skillLevel: number): number {
+  return skillLevel;
 }
 
 // === Crafting Skill Effects ===
 
-// Crafting failure chance based on skill level
+// Crafting failure chance based on skill level (diminishing returns)
 // At level 0: 25% failure chance
-// At level 100: 0% failure chance
+// Uses formula: baseFailure / (1 + skillLevel / 50)
+// Level 50: ~8.3%, Level 100: ~8.3%, Level 200: ~5%
 export function getCraftingFailureChance(skillLevel: number): number {
   const baseFailure = 0.25;
-  const reduction = skillLevel / 100; // 0 at level 0, 1 at level 100
-  return Math.max(0, baseFailure * (1 - reduction));
+  return baseFailure / (1 + skillLevel / 50);
 }
 
-// Quality roll based on crafting skill
+// Quality roll based on crafting skill (diminishing returns)
 // Returns the quality tier for a crafted item
 export function rollCraftingQuality(skillLevel: number): ItemQuality {
   const roll = Math.random() * 100;
 
-  // Base chances at level 0:
-  // Poor: 60%, Normal: 35%, Good: 4%, Excellent: 0.9%, Masterwork: 0.1%
-
-  // At level 100:
-  // Poor: 0%, Normal: 20%, Good: 50%, Excellent: 25%, Masterwork: 5%
-
-  // Interpolate based on skill level
-  const t = skillLevel / 100; // 0 at level 0, 1 at level 100
+  // Use diminishing returns: t approaches 1 as skill increases
+  // t = skillLevel / (skillLevel + 100)
+  // At level 0: t=0, level 100: t=0.5, level 200: t=0.67, level 400: t=0.8
+  const t = skillLevel / (skillLevel + 100);
 
   // Thresholds for each quality (cumulative)
-  const poorThreshold = 60 * (1 - t); // 60 -> 0
-  const normalThreshold = poorThreshold + 35 - 15 * t; // 35 -> 20
-  const goodThreshold = normalThreshold + 4 + 46 * t; // 4 -> 50
-  const excellentThreshold = goodThreshold + 0.9 + 24.1 * t; // 0.9 -> 25
+  // Poor: 60% -> 0% as t -> 1
+  // Normal: 35% -> 15% as t -> 1
+  // Good: 4% -> 50% as t -> 1
+  // Excellent: 0.9% -> 28% as t -> 1
+  // Masterwork: 0.1% -> 7% as t -> 1
+  const poorThreshold = 60 * (1 - t);
+  const normalThreshold = poorThreshold + 35 - 20 * t;
+  const goodThreshold = normalThreshold + 4 + 46 * t;
+  const excellentThreshold = goodThreshold + 0.9 + 27.1 * t;
 
   if (roll < poorThreshold) return 'poor';
   if (roll < normalThreshold) return 'normal';

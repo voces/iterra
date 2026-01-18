@@ -177,7 +177,8 @@ export function attemptCraft(
   recipe: RecipeDef,
   actor: Actor,
   inventory: Inventory,
-  structures: Set<string>
+  structures: Set<string>,
+  turn: number = 0
 ): CraftResult {
   // First check if we can craft at all
   const { canCraft, reason } = canCraftRecipe(recipe, inventory, structures);
@@ -199,7 +200,7 @@ export function attemptCraft(
 
   // Award XP (less for failure)
   const xpAmount = failed ? SKILL_XP_AWARDS.craftFailure : SKILL_XP_AWARDS.craftSuccess;
-  const skillGain = addSkillXp(craftingSkill, xpAmount);
+  const skillGain = addSkillXp(craftingSkill, xpAmount, turn);
 
   if (failed) {
     return {

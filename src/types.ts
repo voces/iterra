@@ -42,6 +42,7 @@ export interface Skill {
   level: number; // 1-100
   xp: number;
   xpToNextLevel: number;
+  lastGainedAt: number; // Turn number when XP was last gained (-1 if never)
 }
 
 export type Skills = Record<SkillType, Skill>;
