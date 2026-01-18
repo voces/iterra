@@ -24,6 +24,8 @@ export interface ActionResult {
     type: 'arrow' | 'rock';
     outcome: 'hit' | 'dodged' | 'blocked' | 'missed';
   };
+  foundLocation?: string; // Location ID discovered
+  foundExit?: boolean; // Found exit from current location
 }
 
 // === Skills System ===
@@ -313,14 +315,57 @@ export interface GameState {
   turn: number;
   log: LogEntry[];
   encounter: Encounter | null;
-  availableNodes: Record<string, number>; // Node type ID -> count of available instances
+  availableNodes: DiscoveredNode[]; // Resource nodes with distance tracking
   structures: Set<string>; // IDs of structures the player has built
   pendingLoot: Inventory | null; // Loot waiting to be picked up (for bandits, etc.)
   pendingCorpse: PendingCorpse | null; // Corpse waiting to be harvested
   gameOver: boolean;
+  // Location system
+  currentLocation: string | null; // Current location ID (null = wilderness)
+  locationStack: string[]; // Path of nested locations (for exiting back up)
+  discoveredLocations: Record<string, DiscoveredLocation>; // Locations found
+  foundExit: boolean; // Whether an exit from current location has been found
 }
 
 export interface LogEntry {
   turn: number;
   message: string;
+}
+
+// === Location System ===
+
+// Locations are nestable areas (dungeons, towns, caves, etc.)
+export interface LocationDef {
+  id: string;
+  name: string;
+  description: string;
+  // Discovery while wandering in parent location (or wilderness if no parent)
+  discoveryChance: number;
+  discoveryMessage: string;
+  // Chance to find exit while wandering inside this location
+  exitDiscoveryChance: number;
+  // Optional filter for which enemies can spawn here (empty = use parent's or all)
+  availableEnemies?: string[];
+  // Optional filter for which resources can be found here (empty = use parent's or all)
+  availableResources?: string[];
+  // Locations that can be discovered inside this one
+  childLocations?: string[];
+  // The parent location ID (null/undefined = wilderness)
+  parentId?: string;
+  // Is this location considered "safe" (no random encounters)?
+  isSafe?: boolean;
+}
+
+// Tracks a discovered location instance
+export interface DiscoveredLocation {
+  locationId: string;
+  // Each entrance tracks its own distance (wanderings since discovery)
+  entrances: { distance: number }[];
+}
+
+// Tracks a discovered resource node instance
+export interface DiscoveredNode {
+  nodeId: string;
+  // Distance from discovery (wanderings since found)
+  distance: number;
 }
