@@ -4,12 +4,11 @@ import type { RecipeDef, Inventory } from './types.ts';
 export const recipes: Record<string, RecipeDef> = {
   campfire: {
     id: 'campfire',
-    name: 'Build Campfire',
-    description: 'Build a campfire using sticks and rocks.',
+    name: 'Craft Campfire',
+    description: 'Craft a portable campfire using sticks and rocks.',
     inputs: { sticks: 5, rocks: 3 },
-    outputs: {},
+    outputs: { campfire: 1 },
     tickCost: 400,
-    unlocks: 'campfire',
   },
   cookedMeat: {
     id: 'cookedMeat',
@@ -35,14 +34,9 @@ export function canCraftRecipe(
   inventory: Inventory,
   structures: Set<string>
 ): { canCraft: boolean; reason?: string } {
-  // Check campfire requirement
+  // Check campfire requirement (for cooking)
   if (recipe.requiresCampfire && !structures.has('campfire')) {
-    return { canCraft: false, reason: 'Requires a campfire.' };
-  }
-
-  // Check structure isn't already built (for unlocking recipes)
-  if (recipe.unlocks && structures.has(recipe.unlocks)) {
-    return { canCraft: false, reason: 'Already built.' };
+    return { canCraft: false, reason: 'Requires a placed campfire.' };
   }
 
   // Check input materials

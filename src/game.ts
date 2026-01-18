@@ -453,10 +453,13 @@ export class Game {
     // Map crafting actions to their requirements
     const craftingRequirements: Record<string, {
       requiresCampfire?: boolean;
+      requiresNoCampfire?: boolean;
       requiresItems?: Record<string, number>;
     }> = {
+      'craft-campfire': { requiresItems: { sticks: 5, rocks: 3 } },
+      'place-campfire': { requiresNoCampfire: true, requiresItems: { campfire: 1 } },
+      'pickup-campfire': { requiresCampfire: true },
       'cook-meat': { requiresCampfire: true, requiresItems: { rawMeat: 1 } },
-      'build-campfire': { requiresItems: { sticks: 5, rocks: 3 } },
     };
 
     return actions.filter((action) => {
@@ -503,6 +506,9 @@ export class Game {
         if (craftReqs.requiresCampfire && !this.state.structures.has('campfire')) {
           return false;
         }
+        if (craftReqs.requiresNoCampfire && this.state.structures.has('campfire')) {
+          return false;
+        }
         if (craftReqs.requiresItems) {
           for (const [itemId, needed] of Object.entries(craftReqs.requiresItems)) {
             if (getItemCount(player, itemId) < needed) {
@@ -510,11 +516,6 @@ export class Game {
             }
           }
         }
-      }
-
-      // Don't show build campfire if already built
-      if (action.id === 'build-campfire' && this.state.structures.has('campfire')) {
-        return false;
       }
 
       return true;

@@ -105,10 +105,10 @@ export const gatherRocks: Action = {
 
 // === Crafting Actions ===
 
-export const buildCampfire: Action = {
-  id: 'build-campfire',
-  name: 'Build Campfire',
-  description: 'Build a campfire using sticks and rocks. (5 sticks, 3 rocks)',
+export const craftCampfire: Action = {
+  id: 'craft-campfire',
+  name: 'Craft Campfire',
+  description: 'Craft a portable campfire. (5 sticks, 3 rocks)',
   tickCost: 400,
   tags: ['crafting', 'non-combat'],
   execute: (actor: Actor, context?: ActionContext) => {
@@ -122,13 +122,57 @@ export const buildCampfire: Action = {
 
     applyRecipe(recipe, actor.inventory);
 
-    if (context?.game && recipe.unlocks) {
-      context.game.structures.add(recipe.unlocks);
+    return {
+      success: true,
+      message: 'You craft a campfire. Place it to cook meat!',
+    };
+  },
+};
+
+export const placeCampfire: Action = {
+  id: 'place-campfire',
+  name: 'Place Campfire',
+  description: 'Place your campfire on the ground.',
+  tickCost: 50,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    if (getItemCount(actor, 'campfire') <= 0) {
+      return { success: false, message: 'You have no campfire to place.' };
+    }
+
+    if (context?.game?.structures.has('campfire')) {
+      return { success: false, message: 'A campfire is already placed.' };
+    }
+
+    removeItem(actor, 'campfire', 1);
+    if (context?.game) {
+      context.game.structures.add('campfire');
     }
 
     return {
       success: true,
-      message: 'You build a campfire. You can now cook meat!',
+      message: 'You place the campfire. You can now cook meat!',
+    };
+  },
+};
+
+export const pickupCampfire: Action = {
+  id: 'pickup-campfire',
+  name: 'Pick Up Campfire',
+  description: 'Pick up your placed campfire.',
+  tickCost: 50,
+  tags: ['crafting', 'non-combat'],
+  execute: (actor: Actor, context?: ActionContext) => {
+    if (!context?.game?.structures.has('campfire')) {
+      return { success: false, message: 'No campfire is placed.' };
+    }
+
+    context.game.structures.delete('campfire');
+    addItem(actor, 'campfire', 1);
+
+    return {
+      success: true,
+      message: 'You pick up the campfire.',
     };
   },
 };
@@ -321,7 +365,7 @@ export const letGo: Action = {
 
 export const combatActions: Action[] = [attack, flee, chase, letGo];
 export const gatheringActions: Action[] = [gatherBerries, gatherSticks, gatherRocks];
-export const craftingActions: Action[] = [buildCampfire, cookMeat];
+export const craftingActions: Action[] = [craftCampfire, placeCampfire, pickupCampfire, cookMeat];
 export const consumptionActions: Action[] = [eatBerries, eatCookedMeat, eatRawMeat];
 
 export const initialPlayerActions: Action[] = [

@@ -48,6 +48,16 @@ export const items: Record<string, ItemDef> = {
     weight: 1.0,
     saturationGain: 8,
   },
+
+  // Structures (portable)
+  campfire: {
+    id: 'campfire',
+    name: 'Campfire',
+    description: 'A portable campfire kit. Place it to cook meat.',
+    stackable: false,
+    tags: ['structure', 'crafted'],
+    weight: 5.0,
+  },
 };
 
 export function getItem(id: string): ItemDef | undefined {
