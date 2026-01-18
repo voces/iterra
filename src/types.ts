@@ -78,7 +78,7 @@ export const QUALITY_BREAKAGE_THRESHOLD = 10;
 
 // Display names for quality tiers
 export const QUALITY_TIER_NAMES: Record<QualityTier, string> = {
-  broken: 'Broken',
+  broken: 'Shoddy',
   poor: 'Poor',
   normal: 'Normal',
   good: 'Good',

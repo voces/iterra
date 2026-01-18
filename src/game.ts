@@ -455,8 +455,8 @@ export class Game {
       };
 
       const actions: string[] = [];
-      if (canBeButchered) actions.push('butcher');
-      if (canBeSkinned) actions.push('skin');
+      if (canBeButchered) actions.push('butchered');
+      if (canBeSkinned) actions.push('skinned');
       this.log(`The ${enemy.name}'s corpse can be ${actions.join(' and ')}.`);
     }
   }
