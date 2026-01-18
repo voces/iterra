@@ -27,11 +27,15 @@ function rollEnemyDamage(enemy: Actor): number {
 }
 
 export function createEncounter(enemy?: Actor, playerLevel: number = 1): Encounter {
+  const actualEnemy = enemy ?? getRandomEnemy(playerLevel);
+  const template = getEnemyTemplate(actualEnemy);
+  const baseAggressiveness = template?.aggressiveness ?? 0.5;
+
   return {
-    enemy: enemy ?? getRandomEnemy(playerLevel),
+    enemy: actualEnemy,
     playerFleeing: false,
     enemyFleeing: false,
-    playerHasAttacked: false,
+    aggressiveness: baseAggressiveness,
     ended: false,
   };
 }
@@ -58,6 +62,7 @@ export function getEnemyAction(
 ): EnemyAction {
   const enemy = encounter.enemy;
   const template = getEnemyTemplate(enemy);
+  const aggressiveness = encounter.aggressiveness;
 
   // If player is fleeing, enemy decides whether to chase
   if (encounter.playerFleeing) {
@@ -69,10 +74,19 @@ export function getEnemyAction(
     return enemyFleeAttempt(encounter, player);
   }
 
+  // Passive creatures (low aggressiveness) don't attack unprovoked
+  // They just watch and wait
+  if (aggressiveness < 0.2) {
+    return {
+      type: 'attack',
+      message: `The ${enemy.name} watches you cautiously.`,
+      damage: 0,
+    };
+  }
+
   // Decide whether to attack or flee
   const healthPercent = enemy.health / enemy.maxHealth;
   const fleeThreshold = template?.fleeThreshold ?? 0.3;
-  const aggressiveness = template?.aggressiveness ?? 0.5;
 
   // Consider fleeing if health is low
   if (healthPercent <= fleeThreshold) {
@@ -212,13 +226,10 @@ function enemyFleeAttempt(encounter: Encounter, player: Actor): EnemyAction {
 
 function enemyChaseDecision(encounter: Encounter, player: Actor): EnemyAction {
   const enemy = encounter.enemy;
-  const template = getEnemyTemplate(enemy);
-  const aggressiveness = template?.aggressiveness ?? 0.5;
+  const aggressiveness = encounter.aggressiveness;
 
   // Passive creatures (low aggressiveness) let player flee without contention
-  // unless the player has attacked them
-  const isPassive = aggressiveness < 0.2;
-  if (isPassive && !encounter.playerHasAttacked) {
+  if (aggressiveness < 0.2) {
     return {
       type: 'chase',
       message: `The ${enemy.name} lets you go.`,
@@ -285,7 +296,12 @@ export function processEnemyTurn(
 export interface PlayerActionInfo {
   isAttack: boolean;
   isChase: boolean;
+  isIdle: boolean;
 }
+
+// How much aggressiveness changes per action
+const AGGRESSION_INCREASE_ON_ATTACK = 0.3;
+const AGGRESSION_DECREASE_ON_IDLE = 0.1;
 
 export function handlePlayerActionResult(
   encounter: Encounter,
@@ -297,9 +313,11 @@ export function handlePlayerActionResult(
     encounter.playerFleeing = true;
   }
 
-  // Track if player has attacked (makes passive creatures aggressive)
+  // Adjust aggressiveness based on player action
   if (actionInfo?.isAttack) {
-    encounter.playerHasAttacked = true;
+    encounter.aggressiveness = Math.min(1, encounter.aggressiveness + AGGRESSION_INCREASE_ON_ATTACK);
+  } else if (actionInfo?.isIdle) {
+    encounter.aggressiveness = Math.max(0, encounter.aggressiveness - AGGRESSION_DECREASE_ON_IDLE);
   }
 
   // If enemy is fleeing and player didn't use chase, enemy auto-escapes

@@ -129,10 +129,11 @@ export class Game {
 
     // Handle encounter-specific results
     if (this.state.encounter) {
-      // Determine action type for flee/chase logic
+      // Determine action type for flee/chase/idle logic
       const isAttack = action.tags.includes('offensive');
       const isChase = action.id === 'chase';
-      const actionInfo: PlayerActionInfo = { isAttack, isChase };
+      const isIdle = action.id === 'idle';
+      const actionInfo: PlayerActionInfo = { isAttack, isChase, isIdle };
 
       handlePlayerActionResult(this.state.encounter, result, player, actionInfo);
 
