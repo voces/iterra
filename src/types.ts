@@ -19,6 +19,11 @@ export interface ActionResult {
   encounterEnded?: boolean;
   fled?: boolean;
   foundResource?: string;
+  // Projectile outcome for recovery tracking
+  projectileUsed?: {
+    type: 'arrow' | 'rock';
+    outcome: 'hit' | 'dodged' | 'blocked' | 'missed';
+  };
 }
 
 // === Skills System ===
@@ -212,12 +217,26 @@ export interface Actor {
   skills: Skills;
 }
 
+// Tracks projectile usage during combat for recovery calculation
+export interface ProjectileOutcome {
+  hit: number;
+  dodged: number;
+  blocked: number;
+  missed: number;
+}
+
+export interface ProjectileTracking {
+  arrows: ProjectileOutcome;
+  rocks: ProjectileOutcome;
+}
+
 export interface Encounter {
   enemy: Actor;
   playerFleeing: boolean;
   enemyFleeing: boolean;
   ended: boolean;
   result?: 'victory' | 'defeat' | 'player_escaped' | 'enemy_escaped';
+  projectilesUsed: ProjectileTracking;
 }
 
 export interface GameState {

@@ -22,6 +22,7 @@ import {
   processEnemyTurn,
   handlePlayerActionResult,
   endEncounter,
+  calculateProjectileRecovery,
 } from './encounter.ts';
 import { getRandomEnemy, generateLoot, getXpReward } from './enemies.ts';
 import { getResourceNode } from './resources.ts';
@@ -384,6 +385,7 @@ export class Game {
         }
 
         this.setPendingLoot(enemy);
+        this.recoverProjectiles();
         break;
       case 'defeat':
         this.log('You have been defeated...');
@@ -395,11 +397,34 @@ export class Game {
         break;
       case 'enemy_escaped':
         this.log(`The ${enemy.name} got away.`);
+        this.recoverProjectiles();
         break;
     }
 
     this.state.encounter = null;
     this.emit('encounter-end');
+  }
+
+  private recoverProjectiles(): void {
+    if (!this.state.encounter) return;
+
+    const recovery = calculateProjectileRecovery(this.state.encounter);
+    const player = this.state.player;
+    const messages: string[] = [];
+
+    if (recovery.arrows > 0) {
+      addItem(player, 'arrow', recovery.arrows);
+      messages.push(`${recovery.arrows} arrow${recovery.arrows > 1 ? 's' : ''}`);
+    }
+
+    if (recovery.rocks > 0) {
+      addItem(player, 'rocks', recovery.rocks);
+      messages.push(`${recovery.rocks} rock${recovery.rocks > 1 ? 's' : ''}`);
+    }
+
+    if (messages.length > 0) {
+      this.log(`Recovered: ${messages.join(', ')}`);
+    }
   }
 
   private setPendingLoot(enemy: typeof this.state.player): void {

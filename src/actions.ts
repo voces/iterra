@@ -691,7 +691,14 @@ export const throwRock: Action = {
       const msg = result.dodged
         ? `The ${enemy.name} dodges your thrown rock!`
         : `You throw a rock at the ${enemy.name} but miss!`;
-      return { success: true, message: msg };
+      return {
+        success: true,
+        message: msg,
+        projectileUsed: {
+          type: 'rock',
+          outcome: result.dodged ? 'dodged' : 'missed',
+        },
+      };
     }
 
     if (result.critical) {
@@ -710,12 +717,14 @@ export const throwRock: Action = {
         success: true,
         message: `Your rock strikes the ${enemy.name} for ${damage} damage.${critText}${levelUpText} Defeated!`,
         encounterEnded: true,
+        projectileUsed: { type: 'rock', outcome: 'hit' },
       };
     }
 
     return {
       success: true,
       message: `Your rock hits the ${enemy.name} for ${damage} damage.${critText}${levelUpText} (${enemy.health}/${enemy.maxHealth} HP)`,
+      projectileUsed: { type: 'rock', outcome: 'hit' },
     };
   },
 };
@@ -773,7 +782,14 @@ export const rangedAttack: Action = {
       const msg = result.dodged
         ? `The ${enemy.name} narrowly dodges your arrow!`
         : `Your arrow flies past the ${enemy.name}!`;
-      return { success: true, message: msg };
+      return {
+        success: true,
+        message: msg,
+        projectileUsed: {
+          type: 'arrow',
+          outcome: result.dodged ? 'dodged' : 'missed',
+        },
+      };
     }
 
     if (result.critical) {
@@ -793,12 +809,14 @@ export const rangedAttack: Action = {
         success: true,
         message: `Your arrow strikes the ${enemy.name}${fleeMsg} for ${damage} damage.${critText}${levelUpText} Defeated!`,
         encounterEnded: true,
+        projectileUsed: { type: 'arrow', outcome: 'hit' },
       };
     }
 
     return {
       success: true,
       message: `Your arrow hits the ${enemy.name} for ${damage} damage.${critText}${levelUpText} (${enemy.health}/${enemy.maxHealth} HP)`,
+      projectileUsed: { type: 'arrow', outcome: 'hit' },
     };
   },
 };
