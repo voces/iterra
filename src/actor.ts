@@ -1,4 +1,4 @@
-import type { Actor, Action } from './types.ts';
+import type { Actor, Action, Inventory } from './types.ts';
 
 export function createActor(
   id: string,
@@ -8,6 +8,8 @@ export function createActor(
     speed?: number;
     maxHealth?: number;
     damage?: number;
+    maxSaturation?: number;
+    inventory?: Partial<Inventory>;
     actions?: Action[];
   } = {}
 ): Actor {
@@ -16,6 +18,8 @@ export function createActor(
     speed = 100,
     maxHealth = 100,
     damage = 10,
+    maxSaturation = 20,
+    inventory = {},
     actions = [],
   } = options;
 
@@ -28,6 +32,12 @@ export function createActor(
     health: maxHealth,
     maxHealth,
     damage,
+    saturation: 0,
+    maxSaturation,
+    inventory: {
+      berries: 0,
+      ...inventory,
+    },
     actions: [...actions],
   };
 }
@@ -58,6 +68,18 @@ export function heal(actor: Actor, amount: number): void {
 
 export function isAlive(actor: Actor): boolean {
   return actor.health > 0;
+}
+
+export function addSaturation(actor: Actor, amount: number): void {
+  actor.saturation = Math.min(actor.maxSaturation, actor.saturation + amount);
+}
+
+export function drainSaturation(actor: Actor, amount: number): void {
+  actor.saturation = Math.max(0, actor.saturation - amount);
+}
+
+export function isOverfull(actor: Actor): boolean {
+  return actor.saturation >= actor.maxSaturation * 0.9; // 90% full = overfull
 }
 
 export function addAction(actor: Actor, action: Action): void {

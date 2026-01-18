@@ -1,6 +1,14 @@
 import type { GameState, Action, LogEntry } from './types.ts';
 import { createPlayer } from './player.ts';
-import { canAffordAction, spendTicks, addTicks, isAlive } from './actor.ts';
+import {
+  canAffordAction,
+  spendTicks,
+  addTicks,
+  isAlive,
+  isOverfull,
+  heal,
+  drainSaturation,
+} from './actor.ts';
 import {
   createEncounter,
   processEnemyTurn,
@@ -13,6 +21,9 @@ export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end'
 
 export type GameEventCallback = (game: Game) => void;
 
+const REGEN_AMOUNT = 2;
+const REGEN_SATURATION_COST = 1;
+
 export class Game {
   state: GameState;
   private listeners: Map<GameEventType, Set<GameEventCallback>> = new Map();
@@ -23,6 +34,7 @@ export class Game {
       turn: 0,
       log: [],
       encounter: null,
+      berryBushFound: false,
     };
   }
 
@@ -57,10 +69,27 @@ export class Game {
       addTicks(player, action.tickGain);
     }
 
-    const context = { encounter: this.state.encounter ?? undefined };
+    const context = {
+      encounter: this.state.encounter ?? undefined,
+      game: this.state,
+    };
     const result = action.execute(player, context);
     this.state.turn++;
     this.log(result.message);
+
+    // Handle resource discovery
+    if (result.foundResource === 'berries') {
+      this.state.berryBushFound = true;
+    }
+
+    // Deplete berry bush after gathering
+    if (action.id === 'gather-berries') {
+      // 60% chance bush is depleted after gathering
+      if (Math.random() < 0.6) {
+        this.state.berryBushFound = false;
+        this.log('The berry bush is now empty.');
+      }
+    }
 
     // Handle encounter-specific results
     if (this.state.encounter) {
@@ -73,14 +102,29 @@ export class Game {
         this.processEnemyTurns();
       }
     } else {
-      // Random encounter chance when wandering
-      if (action.id === 'wander') {
+      // Random encounter chance when wandering (if no berries found)
+      if (action.id === 'wander' && !result.foundResource) {
         this.checkForEncounter();
       }
     }
 
+    // Health regeneration when overfull
+    this.processRegen();
+
     this.emit('turn');
     return true;
+  }
+
+  private processRegen(): void {
+    const player = this.state.player;
+
+    if (isOverfull(player) && player.health < player.maxHealth) {
+      heal(player, REGEN_AMOUNT);
+      drainSaturation(player, REGEN_SATURATION_COST);
+      this.log(
+        `You feel restored. (+${REGEN_AMOUNT} HP, ${player.health}/${player.maxHealth})`
+      );
+    }
   }
 
   private checkForEncounter(): void {
@@ -180,6 +224,8 @@ export class Game {
     const actions = this.state.player.actions;
     const inCombat = this.state.encounter !== null;
     const enemyFleeing = this.state.encounter?.enemyFleeing ?? false;
+    const hasBerries = this.state.player.inventory.berries > 0;
+    const bushAvailable = this.state.berryBushFound;
 
     return actions.filter((action) => {
       // Filter out non-combat actions during encounters
@@ -204,6 +250,16 @@ export class Game {
 
       // Can't flee if already fleeing (waiting for enemy response)
       if (action.id === 'flee' && this.state.encounter?.playerFleeing) {
+        return false;
+      }
+
+      // Gather berries only when bush is found
+      if (action.id === 'gather-berries' && !bushAvailable) {
+        return false;
+      }
+
+      // Eat berries only when player has berries
+      if (action.id === 'eat-berries' && !hasBerries) {
         return false;
       }
 

@@ -1,5 +1,5 @@
 import type { Action, Actor, ActionContext } from './types.ts';
-import { dealDamage, isAlive } from './actor.ts';
+import { dealDamage, isAlive, addSaturation } from './actor.ts';
 
 // === Basic Actions ===
 
@@ -23,6 +23,15 @@ export const wander: Action = {
   tickCost: 300,
   tags: ['basic', 'exploration', 'movement', 'non-combat'],
   execute: (_actor: Actor, _context?: ActionContext) => {
+    // 25% chance to find berries
+    if (Math.random() < 0.25) {
+      return {
+        success: true,
+        message: 'You stumble upon a bush laden with ripe berries!',
+        foundResource: 'berries',
+      };
+    }
+
     const outcomes = [
       'You wander through familiar paths.',
       'You explore a quiet corner.',
@@ -33,6 +42,50 @@ export const wander: Action = {
     return {
       success: true,
       message,
+    };
+  },
+};
+
+// === Gathering Actions ===
+
+export const gatherBerries: Action = {
+  id: 'gather-berries',
+  name: 'Gather Berries',
+  description: 'Pick berries from the bush.',
+  tickCost: 150,
+  tags: ['gathering', 'non-combat'],
+  execute: (actor: Actor, _context?: ActionContext) => {
+    const amount = 2 + Math.floor(Math.random() * 3); // 2-4 berries
+    actor.inventory.berries += amount;
+
+    return {
+      success: true,
+      message: `You gather ${amount} berries. (${actor.inventory.berries} total)`,
+    };
+  },
+};
+
+export const eatBerries: Action = {
+  id: 'eat-berries',
+  name: 'Eat Berries',
+  description: 'Eat berries to restore saturation.',
+  tickCost: 50,
+  tags: ['consumption', 'non-combat'],
+  execute: (actor: Actor, _context?: ActionContext) => {
+    if (actor.inventory.berries <= 0) {
+      return {
+        success: false,
+        message: 'You have no berries to eat.',
+      };
+    }
+
+    actor.inventory.berries -= 1;
+    const satGain = 4;
+    addSaturation(actor, satGain);
+
+    return {
+      success: true,
+      message: `You eat a berry. (+${satGain} saturation, ${actor.saturation}/${actor.maxSaturation})`,
     };
   },
 };
@@ -161,5 +214,11 @@ export const letGo: Action = {
 // === Action Collections ===
 
 export const combatActions: Action[] = [attack, flee, chase, letGo];
+export const gatheringActions: Action[] = [gatherBerries, eatBerries];
 
-export const initialPlayerActions: Action[] = [idle, wander, ...combatActions];
+export const initialPlayerActions: Action[] = [
+  idle,
+  wander,
+  ...combatActions,
+  ...gatheringActions,
+];

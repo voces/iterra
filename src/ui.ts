@@ -9,6 +9,9 @@ export class UI {
     turnCount: HTMLElement;
     healthCount: HTMLElement;
     maxHealth: HTMLElement;
+    saturationCount: HTMLElement;
+    maxSaturation: HTMLElement;
+    berriesCount: HTMLElement;
     actionSearch: HTMLInputElement;
     actionsList: HTMLElement;
     gameLog: HTMLElement;
@@ -26,6 +29,9 @@ export class UI {
       turnCount: document.getElementById('turn-count')!,
       healthCount: document.getElementById('health-count')!,
       maxHealth: document.getElementById('max-health')!,
+      saturationCount: document.getElementById('saturation-count')!,
+      maxSaturation: document.getElementById('max-saturation')!,
+      berriesCount: document.getElementById('berries-count')!,
       actionSearch: document.getElementById('action-search') as HTMLInputElement,
       actionsList: document.getElementById('actions-list')!,
       gameLog: document.getElementById('game-log')!,
@@ -61,6 +67,7 @@ export class UI {
   private subscribeToGame(): void {
     this.game.on('turn', () => {
       this.renderStatus();
+      this.renderInventory();
       this.renderEncounter();
       this.renderActions();
     });
@@ -77,6 +84,7 @@ export class UI {
 
   render(): void {
     this.renderStatus();
+    this.renderInventory();
     this.renderEncounter();
     this.renderActions();
     this.renderLog();
@@ -88,6 +96,13 @@ export class UI {
     this.elements.turnCount.textContent = this.game.state.turn.toString();
     this.elements.healthCount.textContent = player.health.toString();
     this.elements.maxHealth.textContent = player.maxHealth.toString();
+    this.elements.saturationCount.textContent = player.saturation.toString();
+    this.elements.maxSaturation.textContent = player.maxSaturation.toString();
+  }
+
+  private renderInventory(): void {
+    const player = this.game.state.player;
+    this.elements.berriesCount.textContent = player.inventory.berries.toString();
   }
 
   private renderEncounter(): void {

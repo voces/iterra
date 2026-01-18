@@ -10,6 +10,7 @@ export interface Action {
 
 export interface ActionContext {
   encounter?: Encounter;
+  game?: GameState;
 }
 
 export interface ActionResult {
@@ -17,6 +18,11 @@ export interface ActionResult {
   message: string;
   encounterEnded?: boolean;
   fled?: boolean;
+  foundResource?: string;
+}
+
+export interface Inventory {
+  berries: number;
 }
 
 export interface Actor {
@@ -28,6 +34,9 @@ export interface Actor {
   health: number;
   maxHealth: number;
   damage: number;
+  saturation: number;
+  maxSaturation: number;
+  inventory: Inventory;
   actions: Action[];
 }
 
@@ -44,6 +53,7 @@ export interface GameState {
   turn: number;
   log: LogEntry[];
   encounter: Encounter | null;
+  berryBushFound: boolean;
 }
 
 export interface LogEntry {

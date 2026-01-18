@@ -65,6 +65,10 @@ header h1 {
   color: var(--success);
 }
 
+#saturation-count {
+  color: var(--warning);
+}
+
 main {
   display: flex;
   flex-direction: column;
@@ -87,6 +91,25 @@ section h2 {
 
 .hidden {
   display: none !important;
+}
+
+/* Inventory Panel */
+#inventory-panel {
+  border-left: 3px solid var(--warning);
+}
+
+#inventory-list {
+  display: flex;
+  gap: 1rem;
+}
+
+.inventory-item {
+  color: var(--text-secondary);
+}
+
+#berries-count {
+  color: var(--accent);
+  font-weight: bold;
 }
 
 /* Encounter Panel */
