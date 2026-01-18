@@ -15,13 +15,18 @@ import {
   getArmorDodgePenalty,
 } from './actor.ts';
 import { rollForResourceDiscovery, getResourceNode } from './resources.ts';
-import { getRecipe, canCraftRecipe, applyRecipe } from './recipes.ts';
+import { getRecipe, canCraftRecipe, applyRecipe, attemptCraft } from './recipes.ts';
 import { getItem } from './items.ts';
 import {
   calculateAttack,
   trackStatUsage,
   getRangedDamageBonus,
 } from './stats.ts';
+import {
+  addSkillXp,
+  getWeaponSkill,
+  SKILL_XP_AWARDS,
+} from './skills.ts';
 
 // === Basic Actions ===
 
@@ -246,17 +251,20 @@ export const craftStoneKnife: Action = {
   execute: (actor: Actor, context?: ActionContext) => {
     const recipe = getRecipe('stoneKnife')!;
     const structures = context?.game?.structures ?? new Set();
-    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
 
-    if (!canCraft) {
-      return { success: false, message: reason! };
+    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+
+    if (!result.success && !result.failed) {
+      return { success: false, message: result.message };
     }
 
-    applyRecipe(recipe, actor.inventory);
+    if (result.failed) {
+      return { success: true, message: result.message };
+    }
 
     return {
       success: true,
-      message: 'You craft a stone knife. A fast weapon that scales with agility!',
+      message: result.message + ' A fast weapon that scales with agility!',
     };
   },
 };
@@ -270,17 +278,20 @@ export const craftStoneSpear: Action = {
   execute: (actor: Actor, context?: ActionContext) => {
     const recipe = getRecipe('stoneSpear')!;
     const structures = context?.game?.structures ?? new Set();
-    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
 
-    if (!canCraft) {
-      return { success: false, message: reason! };
+    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+
+    if (!result.success && !result.failed) {
+      return { success: false, message: result.message };
     }
 
-    applyRecipe(recipe, actor.inventory);
+    if (result.failed) {
+      return { success: true, message: result.message };
+    }
 
     return {
       success: true,
-      message: 'You craft a stone spear. A powerful weapon that scales with strength!',
+      message: result.message + ' A powerful weapon that scales with strength!',
     };
   },
 };
@@ -294,17 +305,20 @@ export const craftBow: Action = {
   execute: (actor: Actor, context?: ActionContext) => {
     const recipe = getRecipe('bow')!;
     const structures = context?.game?.structures ?? new Set();
-    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
 
-    if (!canCraft) {
-      return { success: false, message: reason! };
+    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+
+    if (!result.success && !result.failed) {
+      return { success: false, message: result.message };
     }
 
-    applyRecipe(recipe, actor.inventory);
+    if (result.failed) {
+      return { success: true, message: result.message };
+    }
 
     return {
       success: true,
-      message: 'You craft a bow. Equip it and craft arrows to shoot!',
+      message: result.message + ' Equip it and craft arrows to shoot!',
     };
   },
 };
@@ -342,17 +356,20 @@ export const craftWoodenShield: Action = {
   execute: (actor: Actor, context?: ActionContext) => {
     const recipe = getRecipe('woodenShield')!;
     const structures = context?.game?.structures ?? new Set();
-    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
 
-    if (!canCraft) {
-      return { success: false, message: reason! };
+    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+
+    if (!result.success && !result.failed) {
+      return { success: false, message: result.message };
     }
 
-    applyRecipe(recipe, actor.inventory);
+    if (result.failed) {
+      return { success: true, message: result.message };
+    }
 
     return {
       success: true,
-      message: 'You craft a wooden shield. Equip it for +5 armor!',
+      message: result.message + ' Equip it for blocking!',
     };
   },
 };
@@ -390,17 +407,20 @@ export const craftLeatherHelm: Action = {
   execute: (actor: Actor, context?: ActionContext) => {
     const recipe = getRecipe('leatherHelm')!;
     const structures = context?.game?.structures ?? new Set();
-    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
 
-    if (!canCraft) {
-      return { success: false, message: reason! };
+    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+
+    if (!result.success && !result.failed) {
+      return { success: false, message: result.message };
     }
 
-    applyRecipe(recipe, actor.inventory);
+    if (result.failed) {
+      return { success: true, message: result.message };
+    }
 
     return {
       success: true,
-      message: 'You craft a leather helm. Equip it for +3 armor!',
+      message: result.message,
     };
   },
 };
@@ -414,17 +434,20 @@ export const craftLeatherChest: Action = {
   execute: (actor: Actor, context?: ActionContext) => {
     const recipe = getRecipe('leatherChest')!;
     const structures = context?.game?.structures ?? new Set();
-    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
 
-    if (!canCraft) {
-      return { success: false, message: reason! };
+    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+
+    if (!result.success && !result.failed) {
+      return { success: false, message: result.message };
     }
 
-    applyRecipe(recipe, actor.inventory);
+    if (result.failed) {
+      return { success: true, message: result.message };
+    }
 
     return {
       success: true,
-      message: 'You craft a leather chestpiece. Equip it for +6 armor!',
+      message: result.message,
     };
   },
 };
@@ -438,17 +461,20 @@ export const craftLeatherLegs: Action = {
   execute: (actor: Actor, context?: ActionContext) => {
     const recipe = getRecipe('leatherLegs')!;
     const structures = context?.game?.structures ?? new Set();
-    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
 
-    if (!canCraft) {
-      return { success: false, message: reason! };
+    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+
+    if (!result.success && !result.failed) {
+      return { success: false, message: result.message };
     }
 
-    applyRecipe(recipe, actor.inventory);
+    if (result.failed) {
+      return { success: true, message: result.message };
+    }
 
     return {
       success: true,
-      message: 'You craft leather leggings. Equip them for +4 armor!',
+      message: result.message,
     };
   },
 };
@@ -462,17 +488,20 @@ export const craftLeatherBoots: Action = {
   execute: (actor: Actor, context?: ActionContext) => {
     const recipe = getRecipe('leatherBoots')!;
     const structures = context?.game?.structures ?? new Set();
-    const { canCraft, reason } = canCraftRecipe(recipe, actor.inventory, structures);
 
-    if (!canCraft) {
-      return { success: false, message: reason! };
+    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+
+    if (!result.success && !result.failed) {
+      return { success: false, message: result.message };
     }
 
-    applyRecipe(recipe, actor.inventory);
+    if (result.failed) {
+      return { success: true, message: result.message };
+    }
 
     return {
       success: true,
-      message: 'You craft leather boots. Equip them for +2 armor!',
+      message: result.message,
     };
   },
 };
@@ -532,6 +561,10 @@ export const attack: Action = {
     trackStatUsage(actor.levelInfo, 'strength', 1);
     trackStatUsage(actor.levelInfo, 'precision', 0.5);
 
+    // Determine weapon skill
+    const weaponId = actor.equipment.mainHand;
+    const weaponSkill = getWeaponSkill(weaponId);
+
     // Roll damage (weapon range + stat scaling)
     const baseDamage = rollDamage(actor);
     const weaponAccuracy = getWeaponAccuracy(actor);
@@ -543,6 +576,10 @@ export const attack: Action = {
       defenderArmorPenalty: enemyDodgePenalty,
       isRanged: false,
     });
+
+    // Award weapon skill XP
+    const skillXp = result.hit ? SKILL_XP_AWARDS.combatHit : SKILL_XP_AWARDS.combatMiss;
+    const skillGain = addSkillXp(actor.skills[weaponSkill], skillXp);
 
     if (!result.hit) {
       const msg = result.dodged
@@ -561,18 +598,19 @@ export const attack: Action = {
     }
 
     const critText = result.critical ? ' Critical hit!' : '';
+    const levelUpText = skillGain.levelsGained > 0 ? ` ${weaponSkill} leveled up!` : '';
 
     if (!isAlive(enemy)) {
       return {
         success: true,
-        message: `You strike the ${enemy.name} for ${finalDamage} damage.${critText} Defeated!`,
+        message: `You strike the ${enemy.name} for ${finalDamage} damage.${critText}${levelUpText} Defeated!`,
         encounterEnded: true,
       };
     }
 
     return {
       success: true,
-      message: `You strike the ${enemy.name} for ${finalDamage} damage.${critText} (${enemy.health}/${enemy.maxHealth} HP)`,
+      message: `You strike the ${enemy.name} for ${finalDamage} damage.${critText}${levelUpText} (${enemy.health}/${enemy.maxHealth} HP)`,
     };
   },
 };
@@ -617,6 +655,10 @@ export const throwRock: Action = {
       isRanged: true,
     });
 
+    // Award throwing skill XP
+    const skillXp = result.hit ? SKILL_XP_AWARDS.combatHit : SKILL_XP_AWARDS.combatMiss;
+    const skillGain = addSkillXp(actor.skills.throwing, skillXp);
+
     if (!result.hit) {
       const msg = result.dodged
         ? `The ${enemy.name} dodges your thrown rock!`
@@ -633,18 +675,19 @@ export const throwRock: Action = {
     dealDamage(enemy, damage);
 
     const critText = result.critical ? ' Critical hit!' : '';
+    const levelUpText = skillGain.levelsGained > 0 ? ' Throwing leveled up!' : '';
 
     if (!isAlive(enemy)) {
       return {
         success: true,
-        message: `Your rock strikes the ${enemy.name} for ${damage} damage.${critText} Defeated!`,
+        message: `Your rock strikes the ${enemy.name} for ${damage} damage.${critText}${levelUpText} Defeated!`,
         encounterEnded: true,
       };
     }
 
     return {
       success: true,
-      message: `Your rock hits the ${enemy.name} for ${damage} damage.${critText} (${enemy.health}/${enemy.maxHealth} HP)`,
+      message: `Your rock hits the ${enemy.name} for ${damage} damage.${critText}${levelUpText} (${enemy.health}/${enemy.maxHealth} HP)`,
     };
   },
 };
@@ -694,6 +737,10 @@ export const rangedAttack: Action = {
       isRanged: true,
     });
 
+    // Award archery skill XP
+    const skillXp = result.hit ? SKILL_XP_AWARDS.combatHit : SKILL_XP_AWARDS.combatMiss;
+    const skillGain = addSkillXp(actor.skills.archery, skillXp);
+
     if (!result.hit) {
       const msg = result.dodged
         ? `The ${enemy.name} narrowly dodges your arrow!`
@@ -710,19 +757,20 @@ export const rangedAttack: Action = {
     dealDamage(enemy, damage);
 
     const critText = result.critical ? ' Critical hit!' : '';
+    const levelUpText = skillGain.levelsGained > 0 ? ' Archery leveled up!' : '';
 
     if (!isAlive(enemy)) {
       const fleeMsg = context.encounter.enemyFleeing ? ' as it flees' : '';
       return {
         success: true,
-        message: `Your arrow strikes the ${enemy.name}${fleeMsg} for ${damage} damage.${critText} Defeated!`,
+        message: `Your arrow strikes the ${enemy.name}${fleeMsg} for ${damage} damage.${critText}${levelUpText} Defeated!`,
         encounterEnded: true,
       };
     }
 
     return {
       success: true,
-      message: `Your arrow hits the ${enemy.name} for ${damage} damage.${critText} (${enemy.health}/${enemy.maxHealth} HP)`,
+      message: `Your arrow hits the ${enemy.name} for ${damage} damage.${critText}${levelUpText} (${enemy.health}/${enemy.maxHealth} HP)`,
     };
   },
 };

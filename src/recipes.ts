@@ -1,4 +1,11 @@
-import type { RecipeDef, Inventory } from './types.ts';
+import type { RecipeDef, Inventory, ItemQuality, ItemInstance, Actor } from './types.ts';
+import {
+  getCraftingFailureChance,
+  rollCraftingQuality,
+  addSkillXp,
+  SKILL_XP_AWARDS,
+} from './skills.ts';
+import { createItemInstance, canHaveQuality } from './items.ts';
 
 // Recipe registry - crafting recipes
 export const recipes: Record<string, RecipeDef> = {
@@ -153,4 +160,116 @@ export function applyRecipe(recipe: RecipeDef, inventory: Inventory): void {
   for (const [itemId, amount] of Object.entries(recipe.outputs)) {
     inventory[itemId] = (inventory[itemId] ?? 0) + amount;
   }
+}
+
+// === Skill-based Crafting ===
+
+export interface CraftResult {
+  success: boolean;
+  failed: boolean; // True if crafting attempt failed (materials lost)
+  message: string;
+  craftedItems?: { itemId: string; quality: ItemQuality; instance?: ItemInstance }[];
+  skillGain?: { levelsGained: number; newLevel: number };
+}
+
+// Attempt crafting with skill checks
+export function attemptCraft(
+  recipe: RecipeDef,
+  actor: Actor,
+  inventory: Inventory,
+  structures: Set<string>
+): CraftResult {
+  // First check if we can craft at all
+  const { canCraft, reason } = canCraftRecipe(recipe, inventory, structures);
+  if (!canCraft) {
+    return { success: false, failed: false, message: reason! };
+  }
+
+  const craftingSkill = actor.skills.crafting;
+  const skillLevel = craftingSkill.level;
+
+  // Check for failure
+  const failureChance = getCraftingFailureChance(skillLevel);
+  const failed = Math.random() < failureChance;
+
+  // Consume inputs regardless of success/failure
+  for (const [itemId, amount] of Object.entries(recipe.inputs)) {
+    inventory[itemId] = (inventory[itemId] ?? 0) - amount;
+  }
+
+  // Award XP (less for failure)
+  const xpAmount = failed ? SKILL_XP_AWARDS.craftFailure : SKILL_XP_AWARDS.craftSuccess;
+  const skillGain = addSkillXp(craftingSkill, xpAmount);
+
+  if (failed) {
+    return {
+      success: false,
+      failed: true,
+      message: `Crafting failed! Materials were lost. (+${xpAmount} crafting XP)`,
+      skillGain,
+    };
+  }
+
+  // Roll quality and create output items
+  const craftedItems: CraftResult['craftedItems'] = [];
+
+  for (const [itemId, amount] of Object.entries(recipe.outputs)) {
+    // Roll quality once per item type (not per item)
+    const quality = canHaveQuality(itemId) ? rollCraftingQuality(skillLevel) : 'normal';
+
+    for (let i = 0; i < amount; i++) {
+      if (canHaveQuality(itemId)) {
+        const instance = createItemInstance(itemId, quality);
+        craftedItems.push({ itemId, quality, instance });
+      } else {
+        craftedItems.push({ itemId, quality: 'normal' });
+      }
+    }
+
+    // Add to inventory (quality items tracked separately)
+    inventory[itemId] = (inventory[itemId] ?? 0) + amount;
+  }
+
+  return {
+    success: true,
+    failed: false,
+    message: buildCraftSuccessMessage(craftedItems, xpAmount),
+    craftedItems,
+    skillGain,
+  };
+}
+
+function buildCraftSuccessMessage(
+  items: CraftResult['craftedItems'],
+  xpGained: number
+): string {
+  if (!items || items.length === 0) return 'Crafted successfully!';
+
+  const firstItem = items[0];
+  const quality = firstItem.quality;
+
+  // Count by item type
+  const itemCounts = new Map<string, number>();
+  for (const item of items) {
+    itemCounts.set(item.itemId, (itemCounts.get(item.itemId) ?? 0) + 1);
+  }
+
+  const itemDescriptions = Array.from(itemCounts.entries())
+    .map(([itemId, cnt]) => (cnt > 1 ? `${cnt}x ${itemId}` : itemId))
+    .join(', ');
+
+  let qualityText = '';
+  if (quality !== 'normal') {
+    qualityText = ` (${quality.charAt(0).toUpperCase() + quality.slice(1)} quality!)`;
+  }
+
+  return `Crafted ${itemDescriptions}${qualityText} (+${xpGained} crafting XP)`;
+}
+
+// Get the quality-based item instance for equipped items
+export function getEquippedItemInstance(
+  actor: Actor,
+  slot: keyof Actor['equipment']
+): ItemInstance | undefined {
+  return actor.equipmentInstances[slot];
 }

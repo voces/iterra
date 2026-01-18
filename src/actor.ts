@@ -1,10 +1,11 @@
-import type { Actor, Action, Inventory, Equipment, EquipSlot, Stats } from './types.ts';
+import type { Actor, Action, Inventory, Equipment, EquipSlot, Stats, Skills, EquipmentInstances } from './types.ts';
 import {
   createLevelInfo,
   getMaxHealthBonus,
   getMaxSaturationBonus,
   getSpeedBonus,
 } from './stats.ts';
+import { createEmptySkills } from './skills.ts';
 
 export function createActor(
   id: string,
@@ -19,9 +20,11 @@ export function createActor(
     maxSaturation?: number;
     inventory?: Inventory;
     equipment?: Equipment;
+    equipmentInstances?: EquipmentInstances;
     actions?: Action[];
     level?: number;
     stats?: Partial<Stats>;
+    skills?: Skills;
   } = {}
 ): Actor {
   const {
@@ -34,9 +37,11 @@ export function createActor(
     maxSaturation = 20, // Can store extra for healing
     inventory = {},
     equipment = {},
+    equipmentInstances = {},
     actions = [],
     level = 1,
     stats,
+    skills,
   } = options;
 
   const levelInfo = createLevelInfo(level, stats);
@@ -59,8 +64,10 @@ export function createActor(
     maxSaturation: effectiveMaxSaturation,
     inventory: { ...inventory },
     equipment: { ...equipment },
+    equipmentInstances: { ...equipmentInstances },
     actions: [...actions],
     levelInfo,
+    skills: skills ?? createEmptySkills(),
   };
 }
 
@@ -288,16 +295,24 @@ export function canEquipInSlot(itemId: string, slot: EquipSlot): boolean {
 }
 
 // Get total equipment bonuses
+// Uses item instance stats if available (for quality variation)
 export function getEquipmentArmorBonus(actor: Actor): number {
   let bonus = 0;
   const counted = new Set<string>();
 
-  for (const itemId of Object.values(actor.equipment)) {
+  for (const [slot, itemId] of Object.entries(actor.equipment)) {
     if (itemId && !counted.has(itemId)) {
       counted.add(itemId);
-      const item = getItem(itemId);
-      if (item?.armorBonus) {
-        bonus += item.armorBonus;
+
+      // Check for item instance with quality-modified stats
+      const instance = actor.equipmentInstances[slot as EquipSlot];
+      if (instance && instance.armorBonus !== undefined) {
+        bonus += instance.armorBonus;
+      } else {
+        const item = getItem(itemId);
+        if (item?.armorBonus) {
+          bonus += item.armorBonus;
+        }
       }
     }
   }
@@ -332,12 +347,20 @@ export interface DamageRange {
 }
 
 // Get weapon's intrinsic damage range, or unarmed if no weapon
+// Uses item instance stats if available (for quality variation)
 export function getWeaponDamageRange(actor: Actor): DamageRange {
   const mainHandId = actor.equipment.mainHand;
   if (!mainHandId) {
     return { min: UNARMED_MIN_DAMAGE, max: UNARMED_MAX_DAMAGE };
   }
 
+  // Check for item instance with quality-modified stats
+  const instance = actor.equipmentInstances.mainHand;
+  if (instance && instance.minDamage !== undefined && instance.maxDamage !== undefined) {
+    return { min: instance.minDamage, max: instance.maxDamage };
+  }
+
+  // Fall back to base item stats
   const item = getItem(mainHandId);
   if (item?.minDamage !== undefined && item?.maxDamage !== undefined) {
     return { min: item.minDamage, max: item.maxDamage };
@@ -409,9 +432,16 @@ export function applyArmor(damage: number, armor: number): number {
 }
 
 // Get weapon accuracy bonus for AR calculation
+// Uses item instance stats if available (for quality variation)
 export function getWeaponAccuracy(actor: Actor): number {
   const mainHandId = actor.equipment.mainHand;
   if (!mainHandId) return 0;
+
+  // Check for item instance with quality-modified stats
+  const instance = actor.equipmentInstances.mainHand;
+  if (instance && instance.accuracy !== undefined) {
+    return instance.accuracy;
+  }
 
   const item = getItem(mainHandId);
   return item?.accuracy ?? 0;
@@ -436,9 +466,16 @@ export function getArmorDodgePenalty(actor: Actor): number {
 }
 
 // Get shield block bonus (0 if no shield)
+// Uses item instance stats if available (for quality variation)
 export function getShieldBlockBonus(actor: Actor): number {
   const offHandId = actor.equipment.offHand;
   if (!offHandId) return 0;
+
+  // Check for item instance with quality-modified stats
+  const instance = actor.equipmentInstances.offHand;
+  if (instance && instance.blockBonus !== undefined) {
+    return instance.blockBonus;
+  }
 
   const item = getItem(offHandId);
   // Only count as shield if it has blockBonus
@@ -446,9 +483,16 @@ export function getShieldBlockBonus(actor: Actor): number {
 }
 
 // Get shield armor value for block damage reduction
+// Uses item instance stats if available (for quality variation)
 export function getShieldArmor(actor: Actor): number {
   const offHandId = actor.equipment.offHand;
   if (!offHandId) return 0;
+
+  // Check for item instance with quality-modified stats
+  const instance = actor.equipmentInstances.offHand;
+  if (instance && instance.armorBonus !== undefined) {
+    return instance.armorBonus;
+  }
 
   const item = getItem(offHandId);
   // Shield armor used for block reduction

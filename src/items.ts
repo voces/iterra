@@ -1,4 +1,5 @@
-import type { ItemDef } from './types.ts';
+import type { ItemDef, ItemInstance, ItemQuality } from './types.ts';
+import { QUALITY_MULTIPLIERS, QUALITY_NAMES } from './types.ts';
 
 // Item registry - all items in the game
 export const items: Record<string, ItemDef> = {
@@ -225,4 +226,88 @@ export function isEdible(item: ItemDef): boolean {
 
 export function getItemsByTag(tag: string): ItemDef[] {
   return Object.values(items).filter((item) => item.tags.includes(tag));
+}
+
+// === Item Instance Creation ===
+
+// Create an item instance with quality applied
+export function createItemInstance(itemId: string, quality: ItemQuality): ItemInstance {
+  const baseDef = getItem(itemId);
+  if (!baseDef) {
+    throw new Error(`Unknown item: ${itemId}`);
+  }
+
+  const multiplier = QUALITY_MULTIPLIERS[quality];
+  const instance: ItemInstance = {
+    itemId,
+    quality,
+  };
+
+  // Apply quality multiplier to numeric stats
+  if (baseDef.minDamage !== undefined) {
+    instance.minDamage = Math.max(1, Math.floor(baseDef.minDamage * multiplier));
+  }
+  if (baseDef.maxDamage !== undefined) {
+    instance.maxDamage = Math.max(1, Math.floor(baseDef.maxDamage * multiplier));
+  }
+  if (baseDef.armorBonus !== undefined) {
+    instance.armorBonus = Math.max(1, Math.floor(baseDef.armorBonus * multiplier));
+  }
+  if (baseDef.blockBonus !== undefined) {
+    instance.blockBonus = Math.max(1, Math.floor(baseDef.blockBonus * multiplier));
+  }
+  if (baseDef.accuracy !== undefined) {
+    // Accuracy can be negative for some items, so handle differently
+    instance.accuracy = Math.floor(baseDef.accuracy * multiplier);
+  }
+
+  return instance;
+}
+
+// Get display name for an item instance (includes quality prefix)
+export function getItemInstanceName(instance: ItemInstance): string {
+  const baseDef = getItem(instance.itemId);
+  if (!baseDef) return 'Unknown Item';
+
+  // Don't show quality for normal items
+  if (instance.quality === 'normal') {
+    return baseDef.name;
+  }
+
+  return `${QUALITY_NAMES[instance.quality]} ${baseDef.name}`;
+}
+
+// Get full item info combining base def and instance stats
+export function getItemInstanceStats(instance: ItemInstance): {
+  name: string;
+  minDamage?: number;
+  maxDamage?: number;
+  armorBonus?: number;
+  blockBonus?: number;
+  accuracy?: number;
+} {
+  const baseDef = getItem(instance.itemId);
+
+  return {
+    name: getItemInstanceName(instance),
+    minDamage: instance.minDamage ?? baseDef?.minDamage,
+    maxDamage: instance.maxDamage ?? baseDef?.maxDamage,
+    armorBonus: instance.armorBonus ?? baseDef?.armorBonus,
+    blockBonus: instance.blockBonus ?? baseDef?.blockBonus,
+    accuracy: instance.accuracy ?? baseDef?.accuracy,
+  };
+}
+
+// Check if an item can have quality variation (equipment only)
+export function canHaveQuality(itemId: string): boolean {
+  const item = getItem(itemId);
+  if (!item) return false;
+
+  // Equipment items can have quality
+  return (
+    item.equipSlot !== undefined ||
+    item.tags.includes('weapon') ||
+    item.tags.includes('armor') ||
+    item.tags.includes('shield')
+  );
 }

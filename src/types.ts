@@ -21,6 +21,65 @@ export interface ActionResult {
   foundResource?: string;
 }
 
+// === Skills System ===
+
+// Combat skills - improve with weapon/combat usage
+export type CombatSkillType =
+  | 'unarmed' // Fighting without weapons
+  | 'knife' // Knives and daggers
+  | 'spear' // Spears and polearms
+  | 'archery' // Bows and crossbows
+  | 'throwing' // Thrown weapons (rocks, javelins)
+  | 'shield'; // Shield blocking
+
+// Crafting skills - improve with crafting
+export type CraftingSkillType =
+  | 'crafting'; // General crafting (can subdivide later: weaponsmithing, armorsmithing, etc.)
+
+export type SkillType = CombatSkillType | CraftingSkillType;
+
+export interface Skill {
+  level: number; // 1-100
+  xp: number;
+  xpToNextLevel: number;
+}
+
+export type Skills = Record<SkillType, Skill>;
+
+// === Item Quality System ===
+
+export type ItemQuality = 'poor' | 'normal' | 'good' | 'excellent' | 'masterwork';
+
+// Quality multipliers for item stats
+export const QUALITY_MULTIPLIERS: Record<ItemQuality, number> = {
+  poor: 0.7,
+  normal: 1.0,
+  good: 1.15,
+  excellent: 1.3,
+  masterwork: 1.5,
+};
+
+// Display names for quality
+export const QUALITY_NAMES: Record<ItemQuality, string> = {
+  poor: 'Poor',
+  normal: 'Normal',
+  good: 'Good',
+  excellent: 'Excellent',
+  masterwork: 'Masterwork',
+};
+
+// Instance of an item with quality (for equipped/inventory items with variance)
+export interface ItemInstance {
+  itemId: string;
+  quality: ItemQuality;
+  // Actual stats after quality modifier applied
+  minDamage?: number;
+  maxDamage?: number;
+  armorBonus?: number;
+  blockBonus?: number;
+  accuracy?: number;
+}
+
 // === Stats System ===
 
 // Core stats that can be leveled
@@ -64,6 +123,9 @@ export type Inventory = Record<string, number>;
 export type EquipSlot = 'mainHand' | 'offHand' | 'head' | 'chest' | 'legs' | 'feet';
 
 export type Equipment = Partial<Record<EquipSlot, string>>; // slot -> itemId
+
+// Equipment with item instances (quality variation)
+export type EquipmentInstances = Partial<Record<EquipSlot, ItemInstance>>;
 
 export interface LootTable {
   [itemId: string]: { min: number; max: number; chance: number };
@@ -141,9 +203,12 @@ export interface Actor {
   maxSaturation: number;
   inventory: Inventory;
   equipment: Equipment;
+  equipmentInstances: EquipmentInstances; // Item instances with quality
   actions: Action[];
   // Leveling and stats
   levelInfo: LevelInfo;
+  // Skills
+  skills: Skills;
 }
 
 export interface Encounter {
