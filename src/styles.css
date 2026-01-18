@@ -768,6 +768,13 @@ section h2 {
   text-align: right;
 }
 
+.no-skills {
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 0.85rem;
+  padding: 0.5rem 0;
+}
+
 /* Mobile optimizations */
 @media (max-width: 600px) {
   #app {

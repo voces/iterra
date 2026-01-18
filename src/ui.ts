@@ -279,9 +279,23 @@ export class UI {
     const player = this.game.state.player;
     const skills = player.skills;
 
+    // Filter to skills that have been used (have XP or level > 0)
+    // Sort by most recently gained XP (descending)
+    const activeSkills = SKILL_TYPES
+      .filter(skillType => {
+        const skill = skills[skillType];
+        return skill.level > 0 || skill.xp > 0;
+      })
+      .sort((a, b) => skills[b].lastGainedAt - skills[a].lastGainedAt);
+
+    if (activeSkills.length === 0) {
+      this.elements.skillsList.innerHTML = '<div class="no-skills">No skills yet. Fight or craft to gain skills!</div>';
+      return;
+    }
+
     let html = '';
 
-    for (const skillType of SKILL_TYPES) {
+    for (const skillType of activeSkills) {
       const skill = skills[skillType];
       const name = SKILL_NAMES[skillType];
       const desc = SKILL_DESCRIPTIONS[skillType];

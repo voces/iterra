@@ -280,7 +280,8 @@ export const craftStoneKnife: Action = {
     const recipe = getRecipe('stoneKnife')!;
     const structures = context?.game?.structures ?? new Set();
 
-    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+    const turn = context?.game?.turn ?? 0;
+    const result = attemptCraft(recipe, actor, actor.inventory, structures, turn);
 
     if (!result.success && !result.failed) {
       return { success: false, message: result.message };
@@ -307,7 +308,8 @@ export const craftStoneSpear: Action = {
     const recipe = getRecipe('stoneSpear')!;
     const structures = context?.game?.structures ?? new Set();
 
-    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+    const turn = context?.game?.turn ?? 0;
+    const result = attemptCraft(recipe, actor, actor.inventory, structures, turn);
 
     if (!result.success && !result.failed) {
       return { success: false, message: result.message };
@@ -334,7 +336,8 @@ export const craftBow: Action = {
     const recipe = getRecipe('bow')!;
     const structures = context?.game?.structures ?? new Set();
 
-    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+    const turn = context?.game?.turn ?? 0;
+    const result = attemptCraft(recipe, actor, actor.inventory, structures, turn);
 
     if (!result.success && !result.failed) {
       return { success: false, message: result.message };
@@ -385,7 +388,8 @@ export const craftWoodenShield: Action = {
     const recipe = getRecipe('woodenShield')!;
     const structures = context?.game?.structures ?? new Set();
 
-    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+    const turn = context?.game?.turn ?? 0;
+    const result = attemptCraft(recipe, actor, actor.inventory, structures, turn);
 
     if (!result.success && !result.failed) {
       return { success: false, message: result.message };
@@ -436,7 +440,8 @@ export const craftLeatherHelm: Action = {
     const recipe = getRecipe('leatherHelm')!;
     const structures = context?.game?.structures ?? new Set();
 
-    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+    const turn = context?.game?.turn ?? 0;
+    const result = attemptCraft(recipe, actor, actor.inventory, structures, turn);
 
     if (!result.success && !result.failed) {
       return { success: false, message: result.message };
@@ -463,7 +468,8 @@ export const craftLeatherChest: Action = {
     const recipe = getRecipe('leatherChest')!;
     const structures = context?.game?.structures ?? new Set();
 
-    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+    const turn = context?.game?.turn ?? 0;
+    const result = attemptCraft(recipe, actor, actor.inventory, structures, turn);
 
     if (!result.success && !result.failed) {
       return { success: false, message: result.message };
@@ -490,7 +496,8 @@ export const craftLeatherLegs: Action = {
     const recipe = getRecipe('leatherLegs')!;
     const structures = context?.game?.structures ?? new Set();
 
-    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+    const turn = context?.game?.turn ?? 0;
+    const result = attemptCraft(recipe, actor, actor.inventory, structures, turn);
 
     if (!result.success && !result.failed) {
       return { success: false, message: result.message };
@@ -517,7 +524,8 @@ export const craftLeatherBoots: Action = {
     const recipe = getRecipe('leatherBoots')!;
     const structures = context?.game?.structures ?? new Set();
 
-    const result = attemptCraft(recipe, actor, actor.inventory, structures);
+    const turn = context?.game?.turn ?? 0;
+    const result = attemptCraft(recipe, actor, actor.inventory, structures, turn);
 
     if (!result.success && !result.failed) {
       return { success: false, message: result.message };
@@ -607,7 +615,8 @@ export const attack: Action = {
 
     // Award weapon skill XP
     const skillXp = result.hit ? SKILL_XP_AWARDS.combatHit : SKILL_XP_AWARDS.combatMiss;
-    const skillGain = addSkillXp(actor.skills[weaponSkill], skillXp);
+    const turn = context?.game?.turn ?? 0;
+    const skillGain = addSkillXp(actor.skills[weaponSkill], skillXp, turn);
 
     if (!result.hit) {
       const msg = result.dodged
@@ -685,7 +694,8 @@ export const throwRock: Action = {
 
     // Award throwing skill XP
     const skillXp = result.hit ? SKILL_XP_AWARDS.combatHit : SKILL_XP_AWARDS.combatMiss;
-    const skillGain = addSkillXp(actor.skills.throwing, skillXp);
+    const turn = context?.game?.turn ?? 0;
+    const skillGain = addSkillXp(actor.skills.throwing, skillXp, turn);
 
     if (!result.hit) {
       const msg = result.dodged
@@ -767,7 +777,8 @@ export const rangedAttack: Action = {
 
     // Award archery skill XP
     const skillXp = result.hit ? SKILL_XP_AWARDS.combatHit : SKILL_XP_AWARDS.combatMiss;
-    const skillGain = addSkillXp(actor.skills.archery, skillXp);
+    const turn = context?.game?.turn ?? 0;
+    const skillGain = addSkillXp(actor.skills.archery, skillXp, turn);
 
     if (!result.hit) {
       const msg = result.dodged

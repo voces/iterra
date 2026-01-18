@@ -57,6 +57,7 @@ export function createSkill(level: number = 0): Skill {
     level,
     xp: 0,
     xpToNextLevel: calculateSkillXpForLevel(level + 1),
+    lastGainedAt: -1,
   };
 }
 
@@ -79,12 +80,13 @@ export interface SkillGainResult {
   newLevel: number;
 }
 
-export function addSkillXp(skill: Skill, amount: number): SkillGainResult {
+export function addSkillXp(skill: Skill, amount: number, turn: number = 0): SkillGainResult {
   if (skill.level >= MAX_SKILL_LEVEL) {
     return { levelsGained: 0, newLevel: skill.level };
   }
 
   skill.xp += amount;
+  skill.lastGainedAt = turn;
   let levelsGained = 0;
 
   while (skill.xp >= skill.xpToNextLevel && skill.level < MAX_SKILL_LEVEL) {
