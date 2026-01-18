@@ -4,8 +4,8 @@ export const idle: Action = {
   id: 'idle',
   name: 'Idle',
   description: 'Rest and recover ticks.',
-  tickCost: 1,
-  tickGain: 2,
+  tickCost: 100,
+  tickGain: 200,
   tags: ['basic', 'recovery'],
   execute: (_actor: Actor) => ({
     success: true,
@@ -17,7 +17,7 @@ export const wander: Action = {
   id: 'wander',
   name: 'Wander',
   description: 'Wander aimlessly, perhaps discovering something.',
-  tickCost: 3,
+  tickCost: 300,
   tags: ['basic', 'exploration', 'movement'],
   execute: (_actor: Actor) => {
     const outcomes = [

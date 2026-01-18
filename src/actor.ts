@@ -5,16 +5,18 @@ export function createActor(
   name: string,
   options: {
     maxTicks?: number;
+    speed?: number;
     actions?: Action[];
   } = {}
 ): Actor {
-  const { maxTicks = 100, actions = [] } = options;
+  const { maxTicks = 10000, speed = 100, actions = [] } = options;
 
   return {
     id,
     name,
     ticks: maxTicks,
     maxTicks,
+    speed,
     actions: [...actions],
   };
 }

@@ -18,6 +18,7 @@ export interface Actor {
   name: string;
   ticks: number;
   maxTicks: number;
+  speed: number;
   actions: Action[];
 }
 
