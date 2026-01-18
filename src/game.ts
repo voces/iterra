@@ -659,15 +659,163 @@ export class Game {
     const available = this.getAvailableActions();
     const q = query.toLowerCase().trim();
 
-    if (!q) {
-      return available;
+    let filtered = available;
+    if (q) {
+      filtered = available.filter((action) => {
+        const nameMatch = action.name.toLowerCase().includes(q);
+        const descMatch = action.description.toLowerCase().includes(q);
+        const tagMatch = action.tags.some((tag) => tag.toLowerCase().includes(q));
+        return nameMatch || descMatch || tagMatch;
+      });
     }
 
-    return available.filter((action) => {
-      const nameMatch = action.name.toLowerCase().includes(q);
-      const descMatch = action.description.toLowerCase().includes(q);
-      const tagMatch = action.tags.some((tag) => tag.toLowerCase().includes(q));
-      return nameMatch || descMatch || tagMatch;
+    // Sort by priority score
+    return this.sortActionsByPriority(filtered);
+  }
+
+  // Score actions by contextual relevance
+  private getActionPriority(action: Action): number {
+    const player = this.state.player;
+    const inCombat = this.state.encounter !== null;
+    const enemyFleeing = this.state.encounter?.enemyFleeing ?? false;
+    let score = 0;
+
+    // Combat actions in combat get high base priority
+    if (inCombat) {
+      if (action.id === 'attack') score += 100;
+      if (action.id === 'flee') score += 80;
+      if (action.id === 'ranged-attack' && player.equipment.mainHand === 'bow') score += 95;
+      if (action.id === 'throw-rock') score += 70;
+      if (action.id === 'chase' && enemyFleeing) score += 90;
+      if (action.id === 'let-go' && enemyFleeing) score += 60;
+      return score;
+    }
+
+    // Non-combat prioritization
+    const satPercent = player.saturation / player.maxSaturation;
+
+    // Food when hungry (saturation < 50%)
+    if (action.tags.includes('consumption')) {
+      if (satPercent < 0.3) score += 100;
+      else if (satPercent < 0.5) score += 80;
+      else score += 30;
+    }
+
+    // Idle/wander are common exploration actions
+    if (action.id === 'idle') {
+      score += 40;
+      // Higher if low on ticks
+      if (player.ticks < 500) score += 30;
+    }
+    if (action.id === 'wander') score += 60;
+
+    // Gathering when resources available
+    if (action.tags.includes('gathering')) {
+      score += 50;
+    }
+
+    // Crafting priorities based on progression
+    if (action.tags.includes('crafting')) {
+      // Arrows are high priority if you have a bow
+      if (action.id === 'craft-arrows' && player.equipment.mainHand === 'bow') {
+        const arrowCount = getItemCount(player, 'arrow');
+        if (arrowCount < 5) score += 85;
+        else if (arrowCount < 15) score += 60;
+        else score += 25;
+      }
+      // Cooking is good if you have raw meat and campfire
+      else if (action.id === 'cook-meat') {
+        score += 70;
+      }
+      // Leather processing
+      else if (action.id === 'process-leather') {
+        score += 55;
+      }
+      // Weapon crafting (lower priority once you have weapons)
+      else if (action.id === 'craft-stone-knife' || action.id === 'craft-stone-spear' || action.id === 'craft-bow') {
+        if (!player.equipment.mainHand) score += 75;
+        else score += 25;
+      }
+      // Armor crafting
+      else if (action.id.startsWith('craft-leather-')) {
+        score += 45;
+      }
+      // Shield crafting
+      else if (action.id === 'craft-wooden-shield') {
+        if (!player.equipment.offHand) score += 55;
+        else score += 20;
+      }
+      // Campfire actions
+      else if (action.id === 'craft-campfire') {
+        // Only if you don't have one
+        if (getItemCount(player, 'campfire') === 0 && !this.state.structures.has('campfire')) {
+          score += 50;
+        } else {
+          score += 5; // Very low if you have one
+        }
+      }
+      else if (action.id === 'place-campfire') {
+        score += 55;
+      }
+      else if (action.id === 'pickup-campfire') {
+        score += 15;
+      }
+      else {
+        score += 30;
+      }
+    }
+
+    return score;
+  }
+
+  private sortActionsByPriority(actions: Action[]): Action[] {
+    return [...actions].sort((a, b) => {
+      const scoreA = this.getActionPriority(a);
+      const scoreB = this.getActionPriority(b);
+      return scoreB - scoreA; // Higher score first
     });
+  }
+
+  // Get actions grouped by category for UI
+  getGroupedActions(): { category: string; actions: Action[] }[] {
+    const available = this.sortActionsByPriority(this.getAvailableActions());
+    const inCombat = this.state.encounter !== null;
+
+    if (inCombat) {
+      return [{ category: 'Combat', actions: available }];
+    }
+
+    // Categorize actions
+    const categories: Record<string, Action[]> = {
+      'Suggested': [],
+      'Explore': [],
+      'Gather': [],
+      'Eat': [],
+      'Craft': [],
+      'Other': [],
+    };
+
+    // Top 3 highest priority go to Suggested
+    const suggested = available.slice(0, 3);
+    categories['Suggested'] = suggested;
+
+    for (const action of available) {
+      if (action.id === 'idle' || action.id === 'wander') {
+        categories['Explore'].push(action);
+      } else if (action.tags.includes('gathering')) {
+        categories['Gather'].push(action);
+      } else if (action.tags.includes('consumption')) {
+        categories['Eat'].push(action);
+      } else if (action.tags.includes('crafting')) {
+        categories['Craft'].push(action);
+      } else {
+        categories['Other'].push(action);
+      }
+    }
+
+    // Return non-empty categories
+    return Object.entries(categories)
+      .filter(([_, actions]) => actions.length > 0)
+      .map(([category, actions]) => ({ category, actions }));
   }
 }

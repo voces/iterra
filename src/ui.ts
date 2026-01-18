@@ -117,6 +117,21 @@ export class UI {
         this.renderActions();
       }
     });
+
+    // Setup collapsible section headers
+    document.querySelectorAll('.collapsible .section-header').forEach((header) => {
+      header.addEventListener('click', () => {
+        const section = header.closest('.collapsible');
+        if (section) {
+          section.classList.toggle('collapsed');
+          // Update toggle icon
+          const icon = header.querySelector('.toggle-icon');
+          if (icon) {
+            icon.textContent = section.classList.contains('collapsed') ? '▶' : '▼';
+          }
+        }
+      });
+    });
   }
 
   private subscribeToGame(): void {
@@ -441,19 +456,63 @@ export class UI {
 
   private renderActions(): void {
     const query = this.elements.actionSearch.value;
-    const actions = this.game.filterActions(query);
 
-    this.elements.actionsList.innerHTML = actions
-      .map((action) => this.renderActionItem(action))
-      .join('');
+    // If searching, show flat list
+    if (query.trim()) {
+      const actions = this.game.filterActions(query);
+      this.elements.actionsList.innerHTML = actions
+        .map((action) => this.renderActionItem(action))
+        .join('');
+    } else {
+      // Otherwise show grouped/categorized actions
+      const groups = this.game.getGroupedActions();
+      this.elements.actionsList.innerHTML = groups
+        .map((group, idx) => this.renderActionGroup(group.category, group.actions, idx === 0))
+        .join('');
+    }
 
     this.elements.actionsList.querySelectorAll('.action-item').forEach((el) => {
       const actionId = el.getAttribute('data-action-id');
-      const action = actions.find((a) => a.id === actionId);
-      if (action) {
-        el.addEventListener('click', () => this.handleActionClick(action));
-      }
+      el.addEventListener('click', () => {
+        const action = this.game.getAvailableActions().find((a) => a.id === actionId);
+        if (action) this.handleActionClick(action);
+      });
     });
+
+    // Setup collapsible category headers
+    this.elements.actionsList.querySelectorAll('.action-category-header').forEach((el) => {
+      el.addEventListener('click', () => {
+        const content = el.nextElementSibling as HTMLElement;
+        const isCollapsed = el.classList.toggle('collapsed');
+        // Update toggle icon
+        const toggle = el.querySelector('.category-toggle');
+        if (toggle) {
+          toggle.textContent = isCollapsed ? '▶' : '▼';
+        }
+        if (content) {
+          content.style.display = isCollapsed ? 'none' : 'flex';
+        }
+      });
+    });
+  }
+
+  private renderActionGroup(category: string, actions: Action[], expanded: boolean = true): string {
+    const actionsHtml = actions.map((action) => this.renderActionItem(action)).join('');
+    const collapsedClass = expanded ? '' : 'collapsed';
+    const displayStyle = expanded ? 'flex' : 'none';
+
+    return `
+      <div class="action-category">
+        <div class="action-category-header ${collapsedClass}" data-category="${category}">
+          <span class="category-toggle">${expanded ? '▼' : '▶'}</span>
+          <span class="category-name">${category}</span>
+          <span class="category-count">${actions.length}</span>
+        </div>
+        <div class="action-category-content" style="display: ${displayStyle}">
+          ${actionsHtml}
+        </div>
+      </div>
+    `;
   }
 
   private renderActionItem(action: Action): string {
