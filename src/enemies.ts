@@ -17,11 +17,54 @@ export interface EnemyTemplate {
 }
 
 export const enemyTemplates: EnemyTemplate[] = [
+  // === Passive/Weak creatures (good for early game) ===
+  {
+    id: 'rabbit',
+    name: 'Rabbit',
+    maxHealth: 15,
+    damage: 2,
+    speed: 150, // Very fast, hard to catch
+    fleeThreshold: 0.9, // Flees almost immediately
+    aggressiveness: 0.05, // Almost never fights
+    loot: {
+      rawMeat: { min: 1, max: 1, chance: 1.0 },
+    },
+    statGrowth: {
+      vitality: 0.5,
+      strength: 0.2,
+      agility: 3, // Very agile
+      precision: 0.5,
+      baseLevel: 1,
+      xpReward: 8,
+    },
+  },
+  {
+    id: 'deer',
+    name: 'Deer',
+    maxHealth: 35,
+    damage: 6,
+    speed: 130,
+    fleeThreshold: 0.8, // Flees when hurt
+    aggressiveness: 0.1, // Rarely fights back
+    loot: {
+      rawMeat: { min: 2, max: 3, chance: 1.0 },
+      rawLeather: { min: 1, max: 2, chance: 0.9 },
+    },
+    statGrowth: {
+      vitality: 1,
+      strength: 0.5,
+      agility: 2,
+      precision: 0.5,
+      baseLevel: 1,
+      xpReward: 15,
+    },
+  },
+  // === Aggressive creatures ===
   {
     id: 'wolf',
     name: 'Wolf',
-    maxHealth: 60,
-    damage: 12,
+    maxHealth: 50, // Reduced from 60
+    damage: 10, // Reduced from 12
     speed: 120,
     fleeThreshold: 0.3,
     aggressiveness: 0.6,
@@ -30,9 +73,9 @@ export const enemyTemplates: EnemyTemplate[] = [
       rawLeather: { min: 1, max: 2, chance: 0.7 },
     },
     statGrowth: {
-      vitality: 2, // +10 HP per level
-      strength: 1.5, // +1.5 damage per level
-      agility: 2, // Fast, good at dodging
+      vitality: 1.5, // Reduced from 2
+      strength: 1, // Reduced from 1.5
+      agility: 1.5, // Reduced from 2
       precision: 1,
       baseLevel: 1,
       xpReward: 25,
@@ -119,9 +162,14 @@ export function calculateEnemyLevel(template: EnemyTemplate, playerLevel: number
 
   // Enemy level scales with player level, with variance
   const levelOffset = Math.floor((playerLevel - 1) * 0.4);
-  const randomVariance = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
 
-  return Math.max(1, baseLevel + levelOffset + randomVariance);
+  // At low player levels, reduce variance to prevent unfair fights
+  const maxVariance = playerLevel <= 2 ? 0 : 1;
+  const randomVariance = Math.floor(Math.random() * (maxVariance * 2 + 1)) - maxVariance;
+
+  // Enemy level can't exceed player level + 1
+  const maxLevel = playerLevel + 1;
+  return Math.min(maxLevel, Math.max(1, baseLevel + levelOffset + randomVariance));
 }
 
 // Generate enemy stats based on level and template
@@ -193,7 +241,38 @@ export function generateLoot(enemy: Actor, playerLuckBonus: number = 0): Invento
 }
 
 export function getRandomEnemy(playerLevel: number = 1): Actor {
-  const template = enemyTemplates[Math.floor(Math.random() * enemyTemplates.length)];
+  // Weight enemy selection based on player level
+  // At level 1-2: favor passive creatures (rabbit, deer)
+  // At level 3+: more balanced selection
+  let weightedTemplates: EnemyTemplate[];
+
+  if (playerLevel <= 2) {
+    // Early game: 50% passive, 50% aggressive
+    const passiveCreatures = enemyTemplates.filter(
+      (t) => t.id === 'rabbit' || t.id === 'deer'
+    );
+    const aggressiveCreatures = enemyTemplates.filter(
+      (t) => t.id !== 'rabbit' && t.id !== 'deer' && t.statGrowth.baseLevel <= playerLevel
+    );
+
+    if (Math.random() < 0.5 && passiveCreatures.length > 0) {
+      weightedTemplates = passiveCreatures;
+    } else if (aggressiveCreatures.length > 0) {
+      weightedTemplates = aggressiveCreatures;
+    } else {
+      weightedTemplates = passiveCreatures.length > 0 ? passiveCreatures : enemyTemplates;
+    }
+  } else {
+    // Later game: filter by base level
+    weightedTemplates = enemyTemplates.filter(
+      (t) => t.statGrowth.baseLevel <= playerLevel
+    );
+    if (weightedTemplates.length === 0) {
+      weightedTemplates = enemyTemplates;
+    }
+  }
+
+  const template = weightedTemplates[Math.floor(Math.random() * weightedTemplates.length)];
   return createEnemy(template, playerLevel);
 }
 
