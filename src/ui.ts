@@ -10,6 +10,7 @@ import {
 } from './actor.ts';
 import { getItem } from './items.ts';
 import { STAT_NAMES, STAT_DESCRIPTIONS, STAT_TYPES } from './stats.ts';
+import { SKILL_TYPES, SKILL_NAMES, SKILL_DESCRIPTIONS } from './skills.ts';
 
 export class UI {
   private game: Game;
@@ -46,6 +47,7 @@ export class UI {
     encounterStatus: HTMLElement;
     gameOverPanel: HTMLElement;
     restartButton: HTMLElement;
+    skillsList: HTMLElement;
   };
 
   constructor(game: Game) {
@@ -82,6 +84,7 @@ export class UI {
       encounterStatus: document.getElementById('encounter-status')!,
       gameOverPanel: document.getElementById('game-over-panel')!,
       restartButton: document.getElementById('restart-button')!,
+      skillsList: document.getElementById('skills-list')!,
     };
 
     this.setupEventListeners();
@@ -159,6 +162,7 @@ export class UI {
     this.game.on('turn', () => {
       this.renderStatus();
       this.renderCharacterStats();
+      this.renderSkills();
       this.renderEquipment();
       this.renderInventory();
       this.renderStructures();
@@ -191,6 +195,7 @@ export class UI {
   render(): void {
     this.renderStatus();
     this.renderCharacterStats();
+    this.renderSkills();
     this.renderEquipment();
     this.renderInventory();
     this.renderStructures();
@@ -268,6 +273,37 @@ export class UI {
         }
       });
     });
+  }
+
+  private renderSkills(): void {
+    const player = this.game.state.player;
+    const skills = player.skills;
+
+    let html = '';
+
+    for (const skillType of SKILL_TYPES) {
+      const skill = skills[skillType];
+      const name = SKILL_NAMES[skillType];
+      const desc = SKILL_DESCRIPTIONS[skillType];
+
+      // Calculate progress percentage for XP bar
+      const xpPercent = skill.xpToNextLevel > 0
+        ? Math.floor((skill.xp / skill.xpToNextLevel) * 100)
+        : 100;
+
+      html += `
+        <div class="skill-row" title="${desc}">
+          <span class="skill-name">${name}</span>
+          <span class="skill-level">${skill.level}</span>
+          <div class="skill-xp-bar">
+            <div class="skill-xp-fill" style="width: ${xpPercent}%"></div>
+          </div>
+          <span class="skill-xp">${skill.xp}/${skill.xpToNextLevel}</span>
+        </div>
+      `;
+    }
+
+    this.elements.skillsList.innerHTML = html;
   }
 
   private renderEquipment(): void {

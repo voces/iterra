@@ -710,6 +710,64 @@ section h2 {
   color: var(--bg-primary);
 }
 
+/* Skills Panel */
+#skills-panel {
+  border-left: 3px solid #0ea5e9;
+}
+
+#skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  cursor: help;
+}
+
+.skill-name {
+  min-width: 70px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.skill-level {
+  color: var(--text-primary);
+  font-weight: bold;
+  min-width: 24px;
+  text-align: right;
+  font-size: 0.85rem;
+}
+
+.skill-xp-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-primary);
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 60px;
+}
+
+.skill-xp-fill {
+  height: 100%;
+  background: #0ea5e9;
+  border-radius: 3px;
+  transition: width 0.2s;
+}
+
+.skill-xp {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  min-width: 50px;
+  text-align: right;
+}
+
 /* Mobile optimizations */
 @media (max-width: 600px) {
   #app {
