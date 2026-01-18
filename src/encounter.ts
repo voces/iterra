@@ -26,9 +26,13 @@ function rollEnemyDamage(enemy: Actor): number {
   return minDamage + statBonus + Math.floor(Math.random() * (maxDamage - minDamage + 1));
 }
 
-export function createEncounter(enemy?: Actor, playerLevel: number = 1): Encounter {
+export function createEncounter(
+  enemy?: Actor,
+  playerLevel: number = 1,
+  locationId: string | null = null
+): Encounter {
   return {
-    enemy: enemy ?? getRandomEnemy(playerLevel),
+    enemy: enemy ?? getRandomEnemy(playerLevel, locationId),
     playerFleeing: false,
     enemyFleeing: false,
     ended: false,

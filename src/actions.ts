@@ -27,6 +27,11 @@ import {
   getWeaponSkill,
   SKILL_XP_AWARDS,
 } from './skills.ts';
+import {
+  rollForLocationDiscovery,
+  rollForExitDiscovery,
+  getLocation,
+} from './locations.ts';
 
 // === Basic Actions ===
 
@@ -58,8 +63,33 @@ export const wander: Action = {
       };
     }
 
-    const discovered = rollForResourceDiscovery();
+    const currentLocation = context?.game?.currentLocation ?? null;
 
+    // Check for exit discovery if inside a location
+    if (currentLocation !== null && !context?.game?.foundExit) {
+      const foundExit = rollForExitDiscovery(currentLocation);
+      if (foundExit) {
+        const location = getLocation(currentLocation);
+        return {
+          success: true,
+          message: `You find a way out of ${location?.name ?? 'this location'}!`,
+          foundExit: true,
+        };
+      }
+    }
+
+    // Check for location discovery
+    const discoveredLocation = rollForLocationDiscovery(currentLocation);
+    if (discoveredLocation) {
+      return {
+        success: true,
+        message: discoveredLocation.discoveryMessage,
+        foundLocation: discoveredLocation.id,
+      };
+    }
+
+    // Check for resource discovery (filtered by location)
+    const discovered = rollForResourceDiscovery(currentLocation);
     if (discovered) {
       return {
         success: true,
@@ -936,6 +966,75 @@ export const letGo: Action = {
   },
 };
 
+// === Location Actions ===
+
+export const exitLocation: Action = {
+  id: 'exit-location',
+  name: 'Exit Location',
+  description: 'Leave the current location through a discovered exit.',
+  tickCost: 100,
+  tags: ['basic', 'exploration', 'movement', 'non-combat', 'location'],
+  execute: (_actor: Actor, context?: ActionContext) => {
+    // Can't exit with a placed campfire
+    if (context?.game?.structures.has('campfire')) {
+      return {
+        success: false,
+        message: "You can't leave with a campfire burning! Pick it up or smother it first.",
+      };
+    }
+
+    // Check if we're in a location
+    if (context?.game?.currentLocation === null) {
+      return {
+        success: false,
+        message: 'You are already in the wilderness.',
+      };
+    }
+
+    // Check if we've found an exit
+    if (!context?.game?.foundExit) {
+      return {
+        success: false,
+        message: "You haven't found a way out yet. Keep exploring!",
+      };
+    }
+
+    // The actual location exit is handled by the game
+    // This action just signals that the player wants to exit
+    const location = getLocation(context.game.currentLocation);
+    return {
+      success: true,
+      message: `You make your way out of ${location?.name ?? 'the location'}...`,
+    };
+  },
+};
+
+// Helper to create an enter location action for a specific location
+export function createEnterLocationAction(locationId: string, locationName: string): Action {
+  return {
+    id: `enter-location-${locationId}`,
+    name: `Enter ${locationName}`,
+    description: `Enter the ${locationName}.`,
+    tickCost: 150,
+    tags: ['basic', 'exploration', 'movement', 'non-combat', 'location'],
+    execute: (_actor: Actor, context?: ActionContext) => {
+      // Can't enter with a placed campfire
+      if (context?.game?.structures.has('campfire')) {
+        return {
+          success: false,
+          message: "You can't leave with a campfire burning! Pick it up or smother it first.",
+        };
+      }
+
+      // The actual location entry is handled by the game via enterLocation()
+      return {
+        success: true,
+        message: `You prepare to enter ${locationName}...`,
+      };
+    },
+  };
+}
+
 // === Action Collections ===
 
 export const combatActions: Action[] = [attack, throwRock, rangedAttack, flee, chase, letGo];
@@ -958,6 +1057,7 @@ export const craftingActions: Action[] = [
   craftLeatherBoots,
 ];
 export const consumptionActions: Action[] = [eatBerries, eatCookedMeat, eatRawMeat];
+export const locationActions: Action[] = [exitLocation];
 
 export const initialPlayerActions: Action[] = [
   idle,
@@ -966,6 +1066,7 @@ export const initialPlayerActions: Action[] = [
   ...gatheringActions,
   ...craftingActions,
   ...consumptionActions,
+  ...locationActions,
 ];
 
 // Helper to get gathering action for a resource node
