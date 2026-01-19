@@ -255,6 +255,7 @@ export class UI {
     this.game.on('encounter-end', () => {
       this.renderEncounter();
       this.renderActions();
+      this.renderCharacterStats(); // Re-render to show stat allocation buttons after combat
     });
     this.game.on('game-over', () => {
       this.renderGameOver();
