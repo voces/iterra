@@ -210,12 +210,29 @@ export class UI {
     // Tracking panel event listeners
     this.elements.copyTracking.addEventListener('click', () => {
       const data = this.game.exportTrackingData();
-      navigator.clipboard.writeText(data).then(() => {
-        const btn = this.elements.copyTracking as HTMLButtonElement;
-        const originalText = btn.textContent;
+      const btn = this.elements.copyTracking as HTMLButtonElement;
+      const originalText = btn.textContent;
+
+      const showSuccess = () => {
         btn.textContent = 'Copied!';
         setTimeout(() => { btn.textContent = originalText; }, 1500);
-      });
+      };
+
+      const showError = () => {
+        btn.textContent = 'Failed';
+        setTimeout(() => { btn.textContent = originalText; }, 1500);
+      };
+
+      // Try modern clipboard API first
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(data).then(showSuccess).catch(() => {
+          // Fallback to textarea method
+          this.copyViaTextarea(data) ? showSuccess() : showError();
+        });
+      } else {
+        // Fallback for older browsers
+        this.copyViaTextarea(data) ? showSuccess() : showError();
+      }
     });
 
     this.elements.clearTracking.addEventListener('click', () => {
@@ -796,6 +813,28 @@ export class UI {
     } else {
       this.elements.trackingSummary.innerHTML = 'No actions recorded yet.';
     }
+  }
+
+  // Fallback copy method for when clipboard API fails (mobile, etc.)
+  private copyViaTextarea(text: string): boolean {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    let success = false;
+    try {
+      success = document.execCommand('copy');
+    } catch {
+      success = false;
+    }
+
+    document.body.removeChild(textarea);
+    return success;
   }
 
   private renderLog(): void {
