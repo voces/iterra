@@ -18,7 +18,7 @@ import {
 } from './actor.ts';
 import { rollForResourceDiscovery, getResourceNode } from './resources.ts';
 import { getRecipe, canCraftRecipe, applyRecipe, attemptCraft } from './recipes.ts';
-import { getItem } from './items.ts';
+import { getItem, getCorpseInfo } from './items.ts';
 import {
   calculateAttack,
   trackStatUsage,
@@ -586,6 +586,28 @@ export const craftLeatherBoots: Action = {
 
 // === Harvesting Actions ===
 
+// Helper to find a butcherable corpse in inventory
+function findButcherableCorpseInInventory(actor: Actor): { itemId: string; enemyId: string } | null {
+  for (const itemId of Object.keys(actor.inventory)) {
+    const info = getCorpseInfo(itemId);
+    if (info && info.state !== 'butchered' && canButcher(info.enemyId)) {
+      return { itemId, enemyId: info.enemyId };
+    }
+  }
+  return null;
+}
+
+// Helper to find a skinnable corpse in inventory
+function findSkinnableCorpseInInventory(actor: Actor): { itemId: string; enemyId: string } | null {
+  for (const itemId of Object.keys(actor.inventory)) {
+    const info = getCorpseInfo(itemId);
+    if (info && info.state !== 'skinned' && canSkin(info.enemyId)) {
+      return { itemId, enemyId: info.enemyId };
+    }
+  }
+  return null;
+}
+
 export const butcher: Action = {
   id: 'butcher',
   name: 'Butcher',
@@ -593,17 +615,30 @@ export const butcher: Action = {
   tickCost: 200,
   tags: ['harvesting', 'non-combat'],
   execute: (actor: Actor, context?: ActionContext) => {
-    const corpse = context?.game?.pendingCorpse;
-    if (!corpse) {
+    const pendingCorpse = context?.game?.pendingCorpse;
+    const inventoryCorpse = findButcherableCorpseInInventory(actor);
+
+    // Determine which corpse to butcher (pending takes priority)
+    let enemyId: string;
+    let enemyName: string;
+    let isInventoryCorpse = false;
+    let inventoryItemId: string | null = null;
+
+    if (pendingCorpse && !pendingCorpse.butchered && canButcher(pendingCorpse.enemyId)) {
+      enemyId = pendingCorpse.enemyId;
+      enemyName = pendingCorpse.enemyName;
+    } else if (inventoryCorpse) {
+      enemyId = inventoryCorpse.enemyId;
+      const item = getItem(inventoryCorpse.itemId);
+      enemyName = item?.name.replace(' Corpse', '').replace(' (Skinned)', '') ?? enemyId;
+      isInventoryCorpse = true;
+      inventoryItemId = inventoryCorpse.itemId;
+    } else if (pendingCorpse?.butchered) {
+      return { success: false, message: `The ${pendingCorpse.enemyName} has already been butchered.` };
+    } else if (pendingCorpse && !canButcher(pendingCorpse.enemyId)) {
+      return { success: false, message: `The ${pendingCorpse.enemyName} has nothing to butcher.` };
+    } else {
       return { success: false, message: 'No corpse to butcher.' };
-    }
-
-    if (corpse.butchered) {
-      return { success: false, message: `The ${corpse.enemyName} has already been butchered.` };
-    }
-
-    if (!canButcher(corpse.enemyId)) {
-      return { success: false, message: `The ${corpse.enemyName} has nothing to butcher.` };
     }
 
     const skill = actor.skills.butchering;
@@ -611,41 +646,50 @@ export const butcher: Action = {
 
     // Roll for success
     if (Math.random() < failureChance) {
-      // Failed - still gain some XP
       const skillGain = addSkillXp(skill, SKILL_XP_AWARDS.harvestFailure);
       const levelUpText = skillGain.levelsGained > 0 ? ' Butchering leveled up!' : '';
 
-      // Mark as butchered even on failure (wasted the meat)
-      corpse.butchered = true;
+      // Mark as butchered even on failure
+      if (isInventoryCorpse && inventoryItemId) {
+        removeItem(actor, inventoryItemId, 1);
+        if (canSkin(enemyId)) {
+          addItem(actor, `corpse_${enemyId}_butchered`, 1);
+        }
+      } else if (pendingCorpse) {
+        pendingCorpse.butchered = true;
+      }
 
       return {
         success: true,
-        message: `You fail to properly butcher the ${corpse.enemyName}, ruining the meat.${levelUpText}`,
+        message: `You fail to properly butcher the ${enemyName}, ruining the meat.${levelUpText}`,
       };
     }
 
-    // Success - generate loot with skill and luck bonuses
+    // Success - generate loot
     const skillBonus = getHarvestingYieldBonus(skill.level);
     const luckBonus = getLootBonus(actor.levelInfo.stats);
-    const loot = generateButcheringLoot(corpse.enemyId, skillBonus, luckBonus);
+    const loot = generateButcheringLoot(enemyId, skillBonus, luckBonus);
 
-    // Roll quality based on skill
     const quality = rollQualityValue(skill.level);
     const qualityName = getQualityName(quality);
 
-    // Add loot to inventory with quality
     for (const [itemId, amount] of Object.entries(loot)) {
       addItemWithQuality(actor, itemId, amount, quality);
     }
 
-    // Mark as butchered
-    corpse.butchered = true;
+    // Update corpse state
+    if (isInventoryCorpse && inventoryItemId) {
+      removeItem(actor, inventoryItemId, 1);
+      if (canSkin(enemyId)) {
+        addItem(actor, `corpse_${enemyId}_butchered`, 1);
+      }
+    } else if (pendingCorpse) {
+      pendingCorpse.butchered = true;
+    }
 
-    // Award XP
     const skillGain = addSkillXp(skill, SKILL_XP_AWARDS.harvestSuccess);
     const levelUpText = skillGain.levelsGained > 0 ? ' Butchering leveled up!' : '';
 
-    // Build loot message with quality
     const lootMessages = Object.entries(loot).map(([itemId, amount]) => {
       const item = getItem(itemId);
       return `${amount} ${item?.name ?? itemId}`;
@@ -655,7 +699,7 @@ export const butcher: Action = {
 
     return {
       success: true,
-      message: `You butcher the ${corpse.enemyName} and obtain ${lootText}${qualityText}.${levelUpText}`,
+      message: `You butcher the ${enemyName} and obtain ${lootText}${qualityText}.${levelUpText}`,
     };
   },
 };
@@ -667,17 +711,30 @@ export const skin: Action = {
   tickCost: 200,
   tags: ['harvesting', 'non-combat'],
   execute: (actor: Actor, context?: ActionContext) => {
-    const corpse = context?.game?.pendingCorpse;
-    if (!corpse) {
+    const pendingCorpse = context?.game?.pendingCorpse;
+    const inventoryCorpse = findSkinnableCorpseInInventory(actor);
+
+    // Determine which corpse to skin (pending takes priority)
+    let enemyId: string;
+    let enemyName: string;
+    let isInventoryCorpse = false;
+    let inventoryItemId: string | null = null;
+
+    if (pendingCorpse && !pendingCorpse.skinned && canSkin(pendingCorpse.enemyId)) {
+      enemyId = pendingCorpse.enemyId;
+      enemyName = pendingCorpse.enemyName;
+    } else if (inventoryCorpse) {
+      enemyId = inventoryCorpse.enemyId;
+      const item = getItem(inventoryCorpse.itemId);
+      enemyName = item?.name.replace(' Corpse', '').replace(' (Butchered)', '') ?? enemyId;
+      isInventoryCorpse = true;
+      inventoryItemId = inventoryCorpse.itemId;
+    } else if (pendingCorpse?.skinned) {
+      return { success: false, message: `The ${pendingCorpse.enemyName} has already been skinned.` };
+    } else if (pendingCorpse && !canSkin(pendingCorpse.enemyId)) {
+      return { success: false, message: `The ${pendingCorpse.enemyName} has nothing to skin.` };
+    } else {
       return { success: false, message: 'No corpse to skin.' };
-    }
-
-    if (corpse.skinned) {
-      return { success: false, message: `The ${corpse.enemyName} has already been skinned.` };
-    }
-
-    if (!canSkin(corpse.enemyId)) {
-      return { success: false, message: `The ${corpse.enemyName} has nothing to skin.` };
     }
 
     const skill = actor.skills.skinning;
@@ -685,41 +742,50 @@ export const skin: Action = {
 
     // Roll for success
     if (Math.random() < failureChance) {
-      // Failed - still gain some XP
       const skillGain = addSkillXp(skill, SKILL_XP_AWARDS.harvestFailure);
       const levelUpText = skillGain.levelsGained > 0 ? ' Skinning leveled up!' : '';
 
-      // Mark as skinned even on failure (ruined the hide)
-      corpse.skinned = true;
+      // Mark as skinned even on failure
+      if (isInventoryCorpse && inventoryItemId) {
+        removeItem(actor, inventoryItemId, 1);
+        if (canButcher(enemyId)) {
+          addItem(actor, `corpse_${enemyId}_skinned`, 1);
+        }
+      } else if (pendingCorpse) {
+        pendingCorpse.skinned = true;
+      }
 
       return {
         success: true,
-        message: `You fail to properly skin the ${corpse.enemyName}, ruining the hide.${levelUpText}`,
+        message: `You fail to properly skin the ${enemyName}, ruining the hide.${levelUpText}`,
       };
     }
 
-    // Success - generate loot with skill and luck bonuses
+    // Success - generate loot
     const skillBonus = getHarvestingYieldBonus(skill.level);
     const luckBonus = getLootBonus(actor.levelInfo.stats);
-    const loot = generateSkinningLoot(corpse.enemyId, skillBonus, luckBonus);
+    const loot = generateSkinningLoot(enemyId, skillBonus, luckBonus);
 
-    // Roll quality based on skill
     const quality = rollQualityValue(skill.level);
     const qualityName = getQualityName(quality);
 
-    // Add loot to inventory with quality
     for (const [itemId, amount] of Object.entries(loot)) {
       addItemWithQuality(actor, itemId, amount, quality);
     }
 
-    // Mark as skinned
-    corpse.skinned = true;
+    // Update corpse state
+    if (isInventoryCorpse && inventoryItemId) {
+      removeItem(actor, inventoryItemId, 1);
+      if (canButcher(enemyId)) {
+        addItem(actor, `corpse_${enemyId}_skinned`, 1);
+      }
+    } else if (pendingCorpse) {
+      pendingCorpse.skinned = true;
+    }
 
-    // Award XP
     const skillGain = addSkillXp(skill, SKILL_XP_AWARDS.harvestSuccess);
     const levelUpText = skillGain.levelsGained > 0 ? ' Skinning leveled up!' : '';
 
-    // Build loot message with quality
     const lootMessages = Object.entries(loot).map(([itemId, amount]) => {
       const item = getItem(itemId);
       return `${amount} ${item?.name ?? itemId}`;
@@ -729,27 +795,38 @@ export const skin: Action = {
 
     return {
       success: true,
-      message: `You skin the ${corpse.enemyName} and obtain ${lootText}${qualityText}.${levelUpText}`,
+      message: `You skin the ${enemyName} and obtain ${lootText}${qualityText}.${levelUpText}`,
     };
   },
 };
 
-export const leaveCorpse: Action = {
-  id: 'leave-corpse',
-  name: 'Leave Corpse',
-  description: 'Leave the corpse behind without harvesting.',
-  tickCost: 25,
+export const pickupCorpse: Action = {
+  id: 'pickup-corpse',
+  name: 'Pick Up Corpse',
+  description: 'Pick up the corpse and add it to your inventory.',
+  tickCost: 100,
   tags: ['harvesting', 'non-combat'],
-  execute: (_actor: Actor, context?: ActionContext) => {
+  execute: (actor: Actor, context?: ActionContext) => {
     const corpse = context?.game?.pendingCorpse;
     if (!corpse) {
-      return { success: false, message: 'No corpse to leave.' };
+      return { success: false, message: 'No corpse to pick up.' };
     }
 
-    // Clear the corpse (will be done in game.ts after action)
+    // Build the corpse item ID based on state
+    let corpseItemId = `corpse_${corpse.enemyId}`;
+    if (corpse.butchered) {
+      corpseItemId += '_butchered';
+    } else if (corpse.skinned) {
+      corpseItemId += '_skinned';
+    }
+
+    // Add corpse to inventory
+    addItem(actor, corpseItemId, 1);
+
     return {
       success: true,
-      message: `You leave the ${corpse.enemyName}'s corpse behind.`,
+      message: `You hoist the ${corpse.enemyName}'s corpse onto your shoulders. It's heavy!`,
+      clearCorpse: true, // Signal to game.ts to clear pendingCorpse
     };
   },
 };
@@ -1232,7 +1309,7 @@ export const craftingActions: Action[] = [
   craftLeatherBoots,
 ];
 export const consumptionActions: Action[] = [eatBerries, eatCookedMeat, eatRawMeat];
-export const harvestingActions: Action[] = [butcher, skin, leaveCorpse];
+export const harvestingActions: Action[] = [butcher, skin, pickupCorpse];
 export const locationActions: Action[] = [exitLocation];
 
 export const initialPlayerActions: Action[] = [
