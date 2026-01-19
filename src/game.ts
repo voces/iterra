@@ -1,5 +1,6 @@
 import type { GameState, Action, LogEntry, EquipSlot, StatType } from './types.ts';
 import { createPlayer } from './player.ts';
+import { saveGame, loadGame, clearSave } from './persistence.ts';
 import {
   spendTicks,
   addTicks,
@@ -37,7 +38,7 @@ import {
 import { getLocation } from './locations.ts';
 import { createEnterLocationAction } from './actions.ts';
 
-export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end' | 'game-over' | 'level-up' | 'location-discovered' | 'location-entered' | 'location-exited' | 'exit-found';
+export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end' | 'game-over' | 'level-up' | 'location-discovered' | 'location-entered' | 'location-exited' | 'exit-found' | 'save' | 'load';
 
 export type GameEventCallback = (game: Game) => void;
 
@@ -75,6 +76,8 @@ export class Game {
   }
 
   restart(): void {
+    // Clear saved game data when starting fresh
+    clearSave();
     this.state = this.createInitialState();
     this.log('A new journey begins...');
     this.emit('turn');
@@ -753,6 +756,38 @@ export class Game {
 
   private emit(event: GameEventType): void {
     this.listeners.get(event)?.forEach((cb) => cb(this));
+
+    // Auto-save after turn events (state changes)
+    if (event === 'turn') {
+      this.autoSave();
+    }
+  }
+
+  private autoSave(): void {
+    saveGame(this.state);
+    this.emit('save');
+  }
+
+  /**
+   * Try to load game from saved state
+   * Returns true if a save was loaded, false if no save exists
+   */
+  loadFromSave(): boolean {
+    const savedState = loadGame();
+    if (savedState) {
+      this.state = savedState;
+      this.emit('load');
+      this.emit('turn'); // Trigger UI update
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Clear saved game data
+   */
+  clearSaveData(): void {
+    clearSave();
   }
 
   getAvailableActions(): Action[] {

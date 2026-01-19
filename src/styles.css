@@ -940,3 +940,60 @@ section h2 {
     padding: 0.35rem;
   }
 }
+
+/* Game Menu */
+#game-menu {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+}
+
+#menu-button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 1.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+#menu-button:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+#menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-top: 0.25rem;
+  min-width: 120px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+}
+
+#menu-dropdown button {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  padding: 0.5rem 1rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#menu-dropdown button:hover {
+  background: var(--bg-tertiary);
+}
+
+/* Make header relative for menu positioning */
+header {
+  position: relative;
+}
