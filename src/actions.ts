@@ -917,6 +917,67 @@ export function createSwitchWeaponAction(weaponId: string): Action {
   };
 }
 
+// === Back Slot Management Actions (non-combat) ===
+
+import {
+  addToBackSlots as actorAddToBackSlots,
+  removeFromBackSlots as actorRemoveFromBackSlots,
+  isTwoHanded,
+} from './actor.ts';
+
+// Add a weapon to back slots (outside of combat)
+export function createAddToBackSlotAction(weaponId: string): Action {
+  const item = getItem(weaponId);
+  const weaponName = item?.name ?? weaponId;
+  const handedness = isTwoHanded(weaponId) ? '2H' : '1H';
+
+  return {
+    id: `add-to-back-${weaponId}`,
+    name: `Strap ${weaponName} (${handedness})`,
+    description: `Strap your ${weaponName.toLowerCase()} to your back for quick access in combat.`,
+    tickCost: 50,
+    tags: ['equipment', 'non-combat', 'back-slot-add'],
+    execute: (actor: Actor, _context?: ActionContext) => {
+      if (actorAddToBackSlots(actor, weaponId)) {
+        return {
+          success: true,
+          message: `You strap your ${weaponName.toLowerCase()} to your back.`,
+        };
+      }
+      return {
+        success: false,
+        message: `Cannot add ${weaponName.toLowerCase()} to back slots.`,
+      };
+    },
+  };
+}
+
+// Remove a weapon from back slots (outside of combat)
+export function createRemoveFromBackSlotAction(weaponId: string): Action {
+  const item = getItem(weaponId);
+  const weaponName = item?.name ?? weaponId;
+
+  return {
+    id: `remove-from-back-${weaponId}`,
+    name: `Unstrap ${weaponName}`,
+    description: `Remove your ${weaponName.toLowerCase()} from your back.`,
+    tickCost: 25,
+    tags: ['equipment', 'non-combat', 'back-slot-remove'],
+    execute: (actor: Actor, _context?: ActionContext) => {
+      if (actorRemoveFromBackSlots(actor, weaponId)) {
+        return {
+          success: true,
+          message: `You remove your ${weaponName.toLowerCase()} from your back.`,
+        };
+      }
+      return {
+        success: false,
+        message: `${weaponName} is not on your back.`,
+      };
+    },
+  };
+}
+
 // Legacy attack action for backwards compatibility (uses currently equipped weapon)
 export const attack: Action = {
   id: 'attack',

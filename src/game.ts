@@ -40,6 +40,8 @@ import {
   createEnterLocationAction,
   createWeaponAttackAction,
   createSwitchWeaponAction,
+  createAddToBackSlotAction,
+  createRemoveFromBackSlotAction,
 } from './actions.ts';
 import {
   ensureBackSlotsHasEquipped,
@@ -921,6 +923,28 @@ export class Game {
           actions.push(createSwitchWeaponAction(weaponId));
         }
       }
+    } else {
+      // Out of combat - add back slot management actions
+      const backSlotWeapons = getBackSlotWeapons(player);
+
+      // Add "strap to back" actions for weapons in inventory/equipped that can be added
+      for (const itemId of Object.keys(player.inventory)) {
+        if (isWeapon(itemId) && canAddToBackSlots(player, itemId)) {
+          actions.push(createAddToBackSlotAction(itemId));
+        }
+      }
+      // Also check equipped weapon (if not already in back slots)
+      if (player.equipment.mainHand && isWeapon(player.equipment.mainHand) && canAddToBackSlots(player, player.equipment.mainHand)) {
+        actions.push(createAddToBackSlotAction(player.equipment.mainHand));
+      }
+
+      // Add "unstrap from back" actions for weapons in back slots
+      // (Don't allow removing currently equipped weapon from back slots)
+      for (const weaponId of backSlotWeapons) {
+        if (weaponId !== player.equipment.mainHand) {
+          actions.push(createRemoveFromBackSlotAction(weaponId));
+        }
+      }
     }
 
     // Map gathering actions to their required resource nodes
@@ -1188,6 +1212,12 @@ export class Game {
       }
     }
 
+    // Back slot management - low priority (equipment setup)
+    if (action.tags.includes('back-slot-add') || action.tags.includes('back-slot-remove')) {
+      score += 15;
+      return score;
+    }
+
     // Crafting priorities based on progression
     if (action.tags.includes('crafting')) {
       // Arrows are high priority if you have a bow
@@ -1270,6 +1300,7 @@ export class Game {
       'Gather': [],
       'Eat': [],
       'Craft': [],
+      'Equipment': [],
       'Other': [],
     };
 
@@ -1290,6 +1321,8 @@ export class Game {
         categories['Eat'].push(action);
       } else if (action.tags.includes('crafting')) {
         categories['Craft'].push(action);
+      } else if (action.tags.includes('back-slot-add') || action.tags.includes('back-slot-remove')) {
+        categories['Equipment'].push(action);
       } else {
         categories['Other'].push(action);
       }
