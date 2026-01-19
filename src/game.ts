@@ -39,7 +39,6 @@ import { getLocation } from './locations.ts';
 import {
   createEnterLocationAction,
   createWeaponAttackAction,
-  createSwitchWeaponAction,
 } from './actions.ts';
 import {
   ensureBackSlotsHasEquipped,
@@ -783,13 +782,15 @@ export class Game {
 
     if (!canAddToBackSlots(player, itemId)) {
       const item = getItem(itemId);
-      const isTwoHanded = item?.twoHanded;
-      if (player.backSlots.length >= 3) {
+      const alreadyOnBack = player.backSlots.some(slot => slot.itemId === itemId);
+      if (alreadyOnBack) {
+        this.log('That weapon is already on your back.');
+      } else if (player.backSlots.length >= 3) {
         this.log('Back slots are full (max 3 weapons).');
-      } else if (isTwoHanded) {
+      } else if (item?.twoHanded) {
         this.log('Cannot add more two-handed weapons (max 2).');
       } else {
-        this.log('Cannot add more one-handed weapons (max 1).');
+        this.log('Cannot add weapon to back slots.');
       }
       return false;
     }
@@ -908,17 +909,17 @@ export class Game {
     const enemyFleeing = this.state.encounter?.enemyFleeing ?? false;
     const player = this.state.player;
 
-    // In combat, add weapon-specific attack actions and switch actions
+    // In combat, add weapon-specific attack actions
     if (inCombat) {
-      // Add attack action for currently equipped weapon
+      // Add attack action for currently equipped weapon (no penalty)
       const equippedWeapon = player.equipment.mainHand;
-      actions.push(createWeaponAttackAction(equippedWeapon));
+      actions.push(createWeaponAttackAction(equippedWeapon, false));
 
-      // Add switch actions for weapons in back slots (not currently equipped)
+      // Add attack actions for weapons in back slots (with penalty)
       const backSlotWeapons = getBackSlotWeapons(player);
       for (const weaponId of backSlotWeapons) {
         if (weaponId !== equippedWeapon) {
-          actions.push(createSwitchWeaponAction(weaponId));
+          actions.push(createWeaponAttackAction(weaponId, true));
         }
       }
     }
@@ -1016,39 +1017,10 @@ export class Game {
       if (action.id === 'throw-rock' && getItemCount(player, 'rocks') <= 0) {
         return false;
       }
-      if (action.id === 'ranged-attack') {
-        // Check if bow is in back slots or equipped, and player has arrows
-        const backSlotWeapons = getBackSlotWeapons(player);
-        const hasBowInBackSlots = backSlotWeapons.includes('bow');
-        const hasBowEquipped = player.equipment.mainHand === 'bow';
-        if ((!hasBowInBackSlots && !hasBowEquipped) || getItemCount(player, 'arrow') <= 0) {
-          return false;
-        }
-      }
 
-      // Weapon attack actions - must be for currently equipped weapon
-      if (action.tags.includes('weapon-attack')) {
-        const weaponId = action.id.replace('attack-', '');
-        const equippedWeapon = player.equipment.mainHand;
-        // Only show attack for currently equipped weapon (or unarmed if none)
-        if (weaponId === 'unarmed') {
-          if (equippedWeapon) return false; // Don't show unarmed if weapon equipped
-        } else {
-          if (weaponId !== equippedWeapon) return false;
-        }
-      }
-
-      // Weapon switch actions - ensure player has the weapon in back slots
-      if (action.tags.includes('weapon-switch')) {
-        const weaponId = action.id.replace('switch-weapon-', '');
-        const backSlotWeapons = getBackSlotWeapons(player);
-        if (!backSlotWeapons.includes(weaponId)) {
-          return false;
-        }
-        // Don't show switch action for currently equipped weapon
-        if (weaponId === player.equipment.mainHand) {
-          return false;
-        }
+      // Bow attacks require arrows (checked in action execute, but filter for UX)
+      if (action.id === 'attack-bow' && getItemCount(player, 'arrow') <= 0) {
+        return false;
       }
 
       // Can't wander with a placed campfire
@@ -1131,22 +1103,9 @@ export class Game {
         return score;
       }
 
-      // Weapon switch actions - lower priority than attacking
-      if (action.tags.includes('weapon-switch')) {
-        score += 50;
-        return score;
-      }
-
       // Legacy generic attack (for backwards compatibility)
       if (action.id === 'attack') score += 100;
       if (action.id === 'flee') score += 80;
-
-      // Ranged attack - check if bow is equipped or in back slots
-      if (action.id === 'ranged-attack') {
-        const backSlotWeapons = getBackSlotWeapons(player);
-        if (player.equipment.mainHand === 'bow') score += 95;
-        else if (backSlotWeapons.includes('bow')) score += 75;
-      }
 
       if (action.id === 'throw-rock') score += 70;
       if (action.id === 'chase' && enemyFleeing) score += 90;

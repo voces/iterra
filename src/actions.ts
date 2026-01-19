@@ -798,48 +798,74 @@ export const eatRawMeat = createEatAction('rawMeat', 'eat-raw-meat', 'Eat Raw Me
 const WEAPON_SWITCH_TICK_COST = 75;
 
 // Factory function to create a weapon-specific attack action
-export function createWeaponAttackAction(weaponId: string | undefined): Action {
+// Handles melee and ranged weapons (bows consume arrows)
+export function createWeaponAttackAction(weaponId: string | undefined, isFromBackSlot: boolean = false): Action {
   const item = weaponId ? getItem(weaponId) : null;
   const attackName = getWeaponAttackName(weaponId);
   const weaponName = item?.name ?? 'Fists';
+  const isRangedWeapon = item?.tags?.includes('ranged') ?? false;
+
+  // Back slot weapons have a small tick penalty
+  const baseCost = 200;
+  const backSlotPenalty = isFromBackSlot ? 50 : 0;
+  const tickCost = baseCost + backSlotPenalty;
+
+  const tags = ['combat', 'offensive', 'weapon-attack'];
+  if (isRangedWeapon) tags.push('ranged');
 
   return {
     id: weaponId ? `attack-${weaponId}` : 'attack-unarmed',
-    name: `${attackName} (${weaponName})`,
+    name: isFromBackSlot ? `${attackName} (${weaponName}) [Back]` : `${attackName} (${weaponName})`,
     description: weaponId
-      ? `Attack with your ${weaponName.toLowerCase()}.`
+      ? `Attack with your ${weaponName.toLowerCase()}.${isFromBackSlot ? ' (Drawing from back)' : ''}`
       : 'Attack with your bare fists.',
-    tickCost: 200,
-    tags: ['combat', 'offensive', 'weapon-attack'],
+    tickCost,
+    tags,
     execute: (actor: Actor, context?: ActionContext) => {
       if (!context?.encounter) {
         return { success: false, message: 'Nothing to attack.' };
       }
 
+      // For ranged weapons (bow), require and consume ammo
+      if (isRangedWeapon && weaponId === 'bow') {
+        if (getItemCount(actor, 'arrow') <= 0) {
+          return { success: false, message: 'You have no arrows.' };
+        }
+        removeItem(actor, 'arrow', 1);
+      }
+
       const enemy = context.encounter.enemy;
 
       // Track stat usage for auto-leveling
-      trackStatUsage(actor.levelInfo, 'strength', 1);
-      trackStatUsage(actor.levelInfo, 'precision', 0.5);
+      if (isRangedWeapon) {
+        trackStatUsage(actor.levelInfo, 'precision', 1);
+        trackStatUsage(actor.levelInfo, 'agility', 0.5);
+      } else {
+        trackStatUsage(actor.levelInfo, 'strength', 1);
+        trackStatUsage(actor.levelInfo, 'precision', 0.5);
+      }
 
       // Determine weapon skill based on equipped weapon
-      const equippedWeapon = actor.equipment.mainHand;
-      const weaponSkill = getWeaponSkill(equippedWeapon);
+      const weaponSkill = getWeaponSkill(weaponId);
 
       // Roll damage (weapon range + stat scaling)
       const baseDamage = rollDamage(actor);
       const weaponAccuracy = getWeaponAccuracy(actor);
       const enemyDodgePenalty = getArmorDodgePenalty(enemy);
 
+      // Ranged bonus vs fleeing enemies
+      const rangedBonus = isRangedWeapon ? getEquipmentRangedBonus(actor) : 0;
+      const fleeingBonus = context.encounter.enemyFleeing ? rangedBonus : 0;
+
       // Use AR vs DR combat system
       const attackerSkillLevel = actor.skills[weaponSkill].level;
       const defenderShieldSkillLevel = enemy.skills?.shield?.level ?? 0;
-      const result = calculateAttack(actor, enemy, baseDamage, {
+      const result = calculateAttack(actor, enemy, baseDamage + fleeingBonus, {
         attackerWeaponAccuracy: weaponAccuracy,
         attackerSkillLevel,
         defenderArmorPenalty: enemyDodgePenalty,
         defenderShieldSkillLevel,
-        isRanged: false,
+        isRanged: isRangedWeapon,
       });
 
       // Award weapon skill XP
@@ -849,11 +875,17 @@ export function createWeaponAttackAction(weaponId: string | undefined): Action {
 
       const actionVerb = attackName.toLowerCase();
 
+      // Track projectile for recovery (ranged weapons)
+      const projectileOutcome = isRangedWeapon && weaponId === 'bow' ? {
+        type: 'arrow' as const,
+        outcome: result.hit ? 'hit' as const : (result.dodged ? 'dodged' as const : 'missed' as const),
+      } : undefined;
+
       if (!result.hit) {
         const msg = result.dodged
           ? `The ${enemy.name} dodges your ${actionVerb}!`
           : `You ${actionVerb} at the ${enemy.name} but miss!`;
-        return { success: true, message: msg };
+        return { success: true, message: msg, projectileUsed: projectileOutcome };
       }
 
       // Apply enemy armor to damage
@@ -873,12 +905,14 @@ export function createWeaponAttackAction(weaponId: string | undefined): Action {
           success: true,
           message: `You ${actionVerb} the ${enemy.name} for ${finalDamage} damage.${critText}${levelUpText} Defeated!`,
           encounterEnded: true,
+          projectileUsed: projectileOutcome,
         };
       }
 
       return {
         success: true,
         message: `You ${actionVerb} the ${enemy.name} for ${finalDamage} damage.${critText}${levelUpText} (${enemy.health}/${enemy.maxHealth} HP)`,
+        projectileUsed: projectileOutcome,
       };
     },
   };
@@ -1275,7 +1309,7 @@ export function createEnterLocationAction(locationId: string, locationName: stri
 
 // === Action Collections ===
 
-export const combatActions: Action[] = [attack, throwRock, rangedAttack, flee, chase];
+export const combatActions: Action[] = [attack, throwRock, flee, chase];
 export const gatheringActions: Action[] = [gatherBerries, gatherSticks, gatherRocks, gatherFiber];
 export const craftingActions: Action[] = [
   craftCampfire,

@@ -197,7 +197,7 @@ export type Equipment = Partial<Record<EquipSlot, string>>; // slot -> itemId
 // - Max 1 one-handed weapon
 export const MAX_BACK_SLOTS = 3;
 export const MAX_TWO_HANDED_BACK = 2;
-export const MAX_ONE_HANDED_BACK = 1;
+// No limit on one-handed weapons in back slots
 
 export interface WeaponBackSlot {
   itemId: string; // The weapon item ID

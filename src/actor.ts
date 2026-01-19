@@ -1,5 +1,5 @@
 import type { Actor, Action, Inventory, Equipment, EquipSlot, Stats, Skills, EquipmentInstances, MaterialQualities, WeaponBackSlots } from './types.ts';
-import { MAX_BACK_SLOTS, MAX_TWO_HANDED_BACK, MAX_ONE_HANDED_BACK } from './types.ts';
+import { MAX_BACK_SLOTS, MAX_TWO_HANDED_BACK } from './types.ts';
 import {
   createLevelInfo,
   getMaxHealthBonus,
@@ -608,6 +608,7 @@ export function countBackSlotWeapons(actor: Actor): { twoHanded: number; oneHand
 }
 
 // Check if a weapon can be added to back slots (respects type limits)
+// Back can hold 3 weapons total, with at most 2 being two-handed
 export function canAddToBackSlots(actor: Actor, itemId: string): boolean {
   if (!isWeapon(itemId)) return false;
 
@@ -617,13 +618,12 @@ export function canAddToBackSlots(actor: Actor, itemId: string): boolean {
   // Check if weapon is already in back slots
   if (actor.backSlots.some(slot => slot.itemId === itemId)) return false;
 
-  // Check type-specific limits
-  const counts = countBackSlotWeapons(actor);
+  // Check two-handed limit (max 2 two-handed weapons on back)
   if (isTwoHanded(itemId)) {
+    const counts = countBackSlotWeapons(actor);
     if (counts.twoHanded >= MAX_TWO_HANDED_BACK) return false;
-  } else {
-    if (counts.oneHanded >= MAX_ONE_HANDED_BACK) return false;
   }
+  // No limit on one-handed weapons (beyond the 3 total slot limit)
 
   return true;
 }
