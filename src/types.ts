@@ -370,3 +370,64 @@ export interface DiscoveredNode {
   // Distance from discovery (wanderings since found)
   distance: number;
 }
+
+// === Action Tracking System ===
+// Records action decisions for analysis and improvement
+
+// Snapshot of relevant state when an action is taken
+export interface ActionStateSnapshot {
+  turn: number;
+  // Player state
+  ticks: number;
+  maxTicks: number;
+  health: number;
+  maxHealth: number;
+  saturation: number;
+  maxSaturation: number;
+  // Combat state
+  inCombat: boolean;
+  enemyName?: string;
+  enemyHealth?: number;
+  enemyMaxHealth?: number;
+  enemyFleeing?: boolean;
+  playerFleeing?: boolean;
+  // Resources
+  availableNodes: string[]; // Node IDs
+  hasCorpse: boolean;
+  // Key inventory counts
+  inventory: {
+    berries: number;
+    rawMeat: number;
+    cookedMeat: number;
+    arrows: number;
+    rocks: number;
+  };
+  // Equipment
+  mainHand: string | null;
+  offHand: string | null;
+  hasCampfire: boolean;
+  campfirePlaced: boolean;
+  // Location
+  currentLocation: string | null;
+  foundExit: boolean;
+}
+
+// Action with its computed priority
+export interface ActionWithPriority {
+  id: string;
+  name: string;
+  tickCost: number;
+  effectiveCost: number; // After distance bonus
+  priority: number;
+  tags: string[];
+}
+
+// A single tracked action decision
+export interface ActionTrackingRecord {
+  timestamp: number;
+  state: ActionStateSnapshot;
+  availableActions: ActionWithPriority[];
+  suggestedActions: string[]; // IDs of top 3 suggested
+  takenAction: string; // ID of action that was taken
+  wasSuggested: boolean; // Whether taken action was in suggested
+}

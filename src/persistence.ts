@@ -383,3 +383,70 @@ export function getSaveInfo(): { savedAt: number; turn: number; level: number } 
     return null;
   }
 }
+
+// === Action Tracking Persistence ===
+
+import type { ActionTrackingRecord } from './types.ts';
+
+const TRACKING_STORAGE_KEY = 'iterra_tracking';
+const MAX_TRACKING_RECORDS = 500;
+
+/**
+ * Save tracking records to localStorage
+ * Automatically trims to max size
+ */
+export function saveTrackingRecords(records: ActionTrackingRecord[]): boolean {
+  try {
+    // Keep only the most recent records if over limit
+    const trimmedRecords = records.length > MAX_TRACKING_RECORDS
+      ? records.slice(-MAX_TRACKING_RECORDS)
+      : records;
+
+    const json = JSON.stringify(trimmedRecords);
+    localStorage.setItem(TRACKING_STORAGE_KEY, json);
+    return true;
+  } catch (error) {
+    console.error('Failed to save tracking records:', error);
+    return false;
+  }
+}
+
+/**
+ * Load tracking records from localStorage
+ */
+export function loadTrackingRecords(): ActionTrackingRecord[] {
+  try {
+    const json = localStorage.getItem(TRACKING_STORAGE_KEY);
+    if (!json) return [];
+
+    const data = JSON.parse(json) as ActionTrackingRecord[];
+    if (!Array.isArray(data)) return [];
+
+    return data;
+  } catch (error) {
+    console.error('Failed to load tracking records:', error);
+    return [];
+  }
+}
+
+/**
+ * Clear tracking records from localStorage
+ */
+export function clearTrackingRecords(): void {
+  localStorage.removeItem(TRACKING_STORAGE_KEY);
+}
+
+/**
+ * Get tracking record count without loading full data
+ */
+export function getTrackingRecordCount(): number {
+  try {
+    const json = localStorage.getItem(TRACKING_STORAGE_KEY);
+    if (!json) return 0;
+
+    const data = JSON.parse(json) as ActionTrackingRecord[];
+    return Array.isArray(data) ? data.length : 0;
+  } catch {
+    return 0;
+  }
+}

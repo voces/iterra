@@ -1,6 +1,6 @@
-import type { GameState, Action, LogEntry, EquipSlot, StatType } from './types.ts';
+import type { GameState, Action, LogEntry, EquipSlot, StatType, ActionTrackingRecord, ActionStateSnapshot, ActionWithPriority } from './types.ts';
 import { createPlayer } from './player.ts';
-import { saveGame, loadGame, clearSave } from './persistence.ts';
+import { saveGame, loadGame, clearSave, saveTrackingRecords, loadTrackingRecords, clearTrackingRecords as clearTrackingStorage } from './persistence.ts';
 import {
   spendTicks,
   addTicks,
@@ -51,9 +51,13 @@ const HUNGER_DECAY_CHANCE = 0.1; // 10% chance to lose 1 saturation per turn
 export class Game {
   state: GameState;
   private listeners: Map<GameEventType, Set<GameEventCallback>> = new Map();
+  private actionTrackingRecords: ActionTrackingRecord[] = [];
+  private trackingEnabled: boolean = true;
 
   constructor() {
     this.state = this.createInitialState();
+    // Load persisted tracking records
+    this.actionTrackingRecords = loadTrackingRecords();
   }
 
   private createInitialState(): GameState {
@@ -79,6 +83,7 @@ export class Game {
     // Clear saved game data when starting fresh
     clearSave();
     this.state = this.createInitialState();
+    // Note: tracking records are NOT cleared on restart - they persist for analysis
     this.log('A new journey begins...');
     this.emit('turn');
   }
@@ -115,6 +120,9 @@ export class Game {
       );
       return false;
     }
+
+    // Record action for tracking (before state changes)
+    this.recordAction(action);
 
     spendTicks(player, effectiveCost);
 
@@ -1131,6 +1139,135 @@ export class Game {
     return Object.entries(categories)
       .filter(([_, actions]) => actions.length > 0)
       .map(([category, actions]) => ({ category, actions }));
+  }
+
+  // === Action Tracking System ===
+
+  // Create a snapshot of current state for tracking
+  private createStateSnapshot(): ActionStateSnapshot {
+    const player = this.state.player;
+    const encounter = this.state.encounter;
+
+    return {
+      turn: this.state.turn,
+      ticks: player.ticks,
+      maxTicks: player.maxTicks,
+      health: player.health,
+      maxHealth: player.maxHealth,
+      saturation: player.saturation,
+      maxSaturation: player.maxSaturation,
+      inCombat: encounter !== null,
+      enemyName: encounter?.enemy.name,
+      enemyHealth: encounter?.enemy.health,
+      enemyMaxHealth: encounter?.enemy.maxHealth,
+      enemyFleeing: encounter?.enemyFleeing,
+      playerFleeing: encounter?.playerFleeing,
+      availableNodes: this.state.availableNodes.map(n => n.nodeId),
+      hasCorpse: this.state.pendingCorpse !== null,
+      inventory: {
+        berries: getItemCount(player, 'berries'),
+        rawMeat: getItemCount(player, 'raw-meat'),
+        cookedMeat: getItemCount(player, 'cooked-meat'),
+        arrows: getItemCount(player, 'arrow'),
+        rocks: getItemCount(player, 'rock'),
+      },
+      mainHand: player.equipment.mainHand ?? null,
+      offHand: player.equipment.offHand ?? null,
+      hasCampfire: getItemCount(player, 'campfire') > 0,
+      campfirePlaced: this.state.structures.has('campfire'),
+      currentLocation: this.state.currentLocation,
+      foundExit: this.state.foundExit,
+    };
+  }
+
+  // Record an action that was taken
+  private recordAction(action: Action): void {
+    if (!this.trackingEnabled) return;
+
+    const availableActions = this.getAvailableActions();
+    const sortedActions = this.sortActionsByPriority(availableActions);
+    const suggestedIds = sortedActions.slice(0, 3).map(a => a.id);
+
+    const actionsWithPriority: ActionWithPriority[] = sortedActions.map(a => ({
+      id: a.id,
+      name: a.name,
+      tickCost: a.tickCost,
+      effectiveCost: this.getEffectiveTickCost(a),
+      priority: this.getActionPriority(a),
+      tags: a.tags,
+    }));
+
+    const record: ActionTrackingRecord = {
+      timestamp: Date.now(),
+      state: this.createStateSnapshot(),
+      availableActions: actionsWithPriority,
+      suggestedActions: suggestedIds,
+      takenAction: action.id,
+      wasSuggested: suggestedIds.includes(action.id),
+    };
+
+    this.actionTrackingRecords.push(record);
+
+    // Persist to localStorage (auto-trims to max size)
+    saveTrackingRecords(this.actionTrackingRecords);
+  }
+
+  // Get all tracking records
+  getTrackingRecords(): ActionTrackingRecord[] {
+    return this.actionTrackingRecords;
+  }
+
+  // Clear tracking records
+  clearTrackingRecords(): void {
+    this.actionTrackingRecords = [];
+    clearTrackingStorage();
+  }
+
+  // Enable/disable tracking
+  setTrackingEnabled(enabled: boolean): void {
+    this.trackingEnabled = enabled;
+  }
+
+  isTrackingEnabled(): boolean {
+    return this.trackingEnabled;
+  }
+
+  // Export tracking data as JSON string
+  exportTrackingData(): string {
+    const data = {
+      exportedAt: new Date().toISOString(),
+      recordCount: this.actionTrackingRecords.length,
+      records: this.actionTrackingRecords,
+    };
+    return JSON.stringify(data, null, 2);
+  }
+
+  // Get tracking summary statistics
+  getTrackingSummary(): {
+    totalActions: number;
+    suggestedFollowed: number;
+    suggestedIgnored: number;
+    followRate: number;
+    actionBreakdown: Record<string, number>;
+  } {
+    const records = this.actionTrackingRecords;
+    const totalActions = records.length;
+    const suggestedFollowed = records.filter(r => r.wasSuggested).length;
+    const suggestedIgnored = totalActions - suggestedFollowed;
+    const followRate = totalActions > 0 ? suggestedFollowed / totalActions : 0;
+
+    const actionBreakdown: Record<string, number> = {};
+    for (const record of records) {
+      actionBreakdown[record.takenAction] = (actionBreakdown[record.takenAction] || 0) + 1;
+    }
+
+    return {
+      totalActions,
+      suggestedFollowed,
+      suggestedIgnored,
+      followRate,
+      actionBreakdown,
+    };
   }
 
   // === Location System ===

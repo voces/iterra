@@ -325,6 +325,88 @@ section h2 {
   font-size: 0.85rem;
 }
 
+/* Tracking Panel */
+#tracking-panel {
+  border-left: 3px solid var(--text-secondary);
+}
+
+#tracking-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.5rem;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+#tracking-indicator {
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+#tracking-indicator.tracking-on {
+  color: var(--success);
+}
+
+#tracking-indicator.tracking-off {
+  color: var(--text-secondary);
+}
+
+#tracking-count {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+#tracking-summary {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  padding: 0 0.25rem;
+}
+
+#tracking-summary .follow-rate {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+#tracking-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+#tracking-actions button {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+#tracking-actions button:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+#tracking-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  margin-left: auto;
+}
+
+#tracking-toggle input {
+  cursor: pointer;
+}
+
 /* Encounter Panel */
 #encounter-panel {
   border: 2px solid var(--danger);
