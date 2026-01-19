@@ -319,6 +319,9 @@ export class Game {
     // Chance to deplete the node
     if (Math.random() < nodeDef.depletionChance) {
       this.state.availableNodes.splice(nodeIndex, 1);
+    } else {
+      // Reset distance to 0 since we walked to the node to gather
+      this.state.availableNodes[nodeIndex].distance = 0;
     }
   }
 
