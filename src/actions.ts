@@ -15,6 +15,7 @@ import {
   applyArmor,
   getWeaponAccuracy,
   getArmorDodgePenalty,
+  switchToBackSlotWeapon,
 } from './actor.ts';
 import { rollForResourceDiscovery, getResourceNode } from './resources.ts';
 import { getRecipe, canCraftRecipe, applyRecipe, attemptCraft } from './recipes.ts';
@@ -27,6 +28,7 @@ import {
 import {
   addSkillXp,
   getWeaponSkill,
+  getWeaponAttackName,
   getHarvestingFailureChance,
   getHarvestingYieldBonus,
   rollQualityValue,
@@ -792,6 +794,130 @@ export const eatRawMeat = createEatAction('rawMeat', 'eat-raw-meat', 'Eat Raw Me
 
 // === Combat Actions ===
 
+// Tick cost for switching weapons in combat
+const WEAPON_SWITCH_TICK_COST = 75;
+
+// Factory function to create a weapon-specific attack action
+export function createWeaponAttackAction(weaponId: string | undefined): Action {
+  const item = weaponId ? getItem(weaponId) : null;
+  const attackName = getWeaponAttackName(weaponId);
+  const weaponName = item?.name ?? 'Fists';
+
+  return {
+    id: weaponId ? `attack-${weaponId}` : 'attack-unarmed',
+    name: `${attackName} (${weaponName})`,
+    description: weaponId
+      ? `Attack with your ${weaponName.toLowerCase()}.`
+      : 'Attack with your bare fists.',
+    tickCost: 200,
+    tags: ['combat', 'offensive', 'weapon-attack'],
+    execute: (actor: Actor, context?: ActionContext) => {
+      if (!context?.encounter) {
+        return { success: false, message: 'Nothing to attack.' };
+      }
+
+      const enemy = context.encounter.enemy;
+
+      // Track stat usage for auto-leveling
+      trackStatUsage(actor.levelInfo, 'strength', 1);
+      trackStatUsage(actor.levelInfo, 'precision', 0.5);
+
+      // Determine weapon skill based on equipped weapon
+      const equippedWeapon = actor.equipment.mainHand;
+      const weaponSkill = getWeaponSkill(equippedWeapon);
+
+      // Roll damage (weapon range + stat scaling)
+      const baseDamage = rollDamage(actor);
+      const weaponAccuracy = getWeaponAccuracy(actor);
+      const enemyDodgePenalty = getArmorDodgePenalty(enemy);
+
+      // Use AR vs DR combat system
+      const attackerSkillLevel = actor.skills[weaponSkill].level;
+      const defenderShieldSkillLevel = enemy.skills?.shield?.level ?? 0;
+      const result = calculateAttack(actor, enemy, baseDamage, {
+        attackerWeaponAccuracy: weaponAccuracy,
+        attackerSkillLevel,
+        defenderArmorPenalty: enemyDodgePenalty,
+        defenderShieldSkillLevel,
+        isRanged: false,
+      });
+
+      // Award weapon skill XP
+      const skillXp = result.hit ? SKILL_XP_AWARDS.combatHit : SKILL_XP_AWARDS.combatMiss;
+      const turn = context?.game?.turn ?? 0;
+      const skillGain = addSkillXp(actor.skills[weaponSkill], skillXp, turn);
+
+      const actionVerb = attackName.toLowerCase();
+
+      if (!result.hit) {
+        const msg = result.dodged
+          ? `The ${enemy.name} dodges your ${actionVerb}!`
+          : `You ${actionVerb} at the ${enemy.name} but miss!`;
+        return { success: true, message: msg };
+      }
+
+      // Apply enemy armor to damage
+      const enemyArmor = getEquipmentArmorBonus(enemy);
+      const finalDamage = applyArmor(result.damage, enemyArmor);
+      dealDamage(enemy, finalDamage);
+
+      if (result.critical) {
+        trackStatUsage(actor.levelInfo, 'luck', 1);
+      }
+
+      const critText = result.critical ? ' Critical hit!' : '';
+      const levelUpText = skillGain.levelsGained > 0 ? ` ${weaponSkill} leveled up!` : '';
+
+      if (!isAlive(enemy)) {
+        return {
+          success: true,
+          message: `You ${actionVerb} the ${enemy.name} for ${finalDamage} damage.${critText}${levelUpText} Defeated!`,
+          encounterEnded: true,
+        };
+      }
+
+      return {
+        success: true,
+        message: `You ${actionVerb} the ${enemy.name} for ${finalDamage} damage.${critText}${levelUpText} (${enemy.health}/${enemy.maxHealth} HP)`,
+      };
+    },
+  };
+}
+
+// Switch weapon action - swaps with a weapon from back slots
+export function createSwitchWeaponAction(weaponId: string): Action {
+  const item = getItem(weaponId);
+  const weaponName = item?.name ?? weaponId;
+
+  return {
+    id: `switch-weapon-${weaponId}`,
+    name: `Switch to ${weaponName}`,
+    description: `Draw your ${weaponName.toLowerCase()} from your back.`,
+    tickCost: WEAPON_SWITCH_TICK_COST,
+    tags: ['combat', 'weapon-switch'],
+    execute: (actor: Actor, _context?: ActionContext) => {
+      const previousWeapon = switchToBackSlotWeapon(actor, weaponId);
+      if (previousWeapon === null && actor.equipment.mainHand !== weaponId) {
+        return {
+          success: false,
+          message: `Cannot switch to ${weaponName}.`,
+        };
+      }
+
+      const prevItem = previousWeapon ? getItem(previousWeapon) : null;
+      const prevName = prevItem?.name ?? 'fists';
+
+      return {
+        success: true,
+        message: previousWeapon
+          ? `You sheathe your ${prevName.toLowerCase()} and draw your ${weaponName.toLowerCase()}.`
+          : `You draw your ${weaponName.toLowerCase()}.`,
+      };
+    },
+  };
+}
+
+// Legacy attack action for backwards compatibility (uses currently equipped weapon)
 export const attack: Action = {
   id: 'attack',
   name: 'Attack',
@@ -799,72 +925,9 @@ export const attack: Action = {
   tickCost: 200,
   tags: ['combat', 'offensive'],
   execute: (actor: Actor, context?: ActionContext) => {
-    if (!context?.encounter) {
-      return { success: false, message: 'Nothing to attack.' };
-    }
-
-    const enemy = context.encounter.enemy;
-
-    // Track stat usage for auto-leveling
-    trackStatUsage(actor.levelInfo, 'strength', 1);
-    trackStatUsage(actor.levelInfo, 'precision', 0.5);
-
-    // Determine weapon skill
     const weaponId = actor.equipment.mainHand;
-    const weaponSkill = getWeaponSkill(weaponId);
-
-    // Roll damage (weapon range + stat scaling)
-    const baseDamage = rollDamage(actor);
-    const weaponAccuracy = getWeaponAccuracy(actor);
-    const enemyDodgePenalty = getArmorDodgePenalty(enemy);
-
-    // Use new AR vs DR combat system
-    const attackerSkillLevel = actor.skills[weaponSkill].level;
-    const defenderShieldSkillLevel = enemy.skills?.shield?.level ?? 0;
-    const result = calculateAttack(actor, enemy, baseDamage, {
-      attackerWeaponAccuracy: weaponAccuracy,
-      attackerSkillLevel,
-      defenderArmorPenalty: enemyDodgePenalty,
-      defenderShieldSkillLevel,
-      isRanged: false,
-    });
-
-    // Award weapon skill XP
-    const skillXp = result.hit ? SKILL_XP_AWARDS.combatHit : SKILL_XP_AWARDS.combatMiss;
-    const turn = context?.game?.turn ?? 0;
-    const skillGain = addSkillXp(actor.skills[weaponSkill], skillXp, turn);
-
-    if (!result.hit) {
-      const msg = result.dodged
-        ? `The ${enemy.name} dodges your attack!`
-        : `You swing at the ${enemy.name} but miss!`;
-      return { success: true, message: msg };
-    }
-
-    // Apply enemy armor to damage
-    const enemyArmor = getEquipmentArmorBonus(enemy);
-    const finalDamage = applyArmor(result.damage, enemyArmor);
-    dealDamage(enemy, finalDamage);
-
-    if (result.critical) {
-      trackStatUsage(actor.levelInfo, 'luck', 1);
-    }
-
-    const critText = result.critical ? ' Critical hit!' : '';
-    const levelUpText = skillGain.levelsGained > 0 ? ` ${weaponSkill} leveled up!` : '';
-
-    if (!isAlive(enemy)) {
-      return {
-        success: true,
-        message: `You strike the ${enemy.name} for ${finalDamage} damage.${critText}${levelUpText} Defeated!`,
-        encounterEnded: true,
-      };
-    }
-
-    return {
-      success: true,
-      message: `You strike the ${enemy.name} for ${finalDamage} damage.${critText}${levelUpText} (${enemy.health}/${enemy.maxHealth} HP)`,
-    };
+    const weaponAction = createWeaponAttackAction(weaponId);
+    return weaponAction.execute(actor, context);
   },
 };
 
