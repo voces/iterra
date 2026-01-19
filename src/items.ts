@@ -1,5 +1,6 @@
 import type { ItemDef, ItemInstance, ItemQuality } from './types.ts';
 import { QUALITY_NAMES, getQualityMultiplier, getQualityName, getQualityTier } from './types.ts';
+import { enemyTemplates } from './enemies.ts';
 
 // Item registry - all items in the game
 export const items: Record<string, ItemDef> = {
@@ -216,8 +217,60 @@ export const items: Record<string, ItemDef> = {
   },
 };
 
+// Parse corpse item ID: corpse_{enemyId} or corpse_{enemyId}_{state}
+function parseCorpseId(id: string): { enemyId: string; state: 'fresh' | 'butchered' | 'skinned' } | null {
+  if (!id.startsWith('corpse_')) return null;
+  const parts = id.slice(7).split('_'); // Remove 'corpse_' prefix
+  if (parts.length === 0) return null;
+
+  const lastPart = parts[parts.length - 1];
+  if (lastPart === 'butchered' || lastPart === 'skinned') {
+    return { enemyId: parts.slice(0, -1).join('_'), state: lastPart };
+  }
+  return { enemyId: parts.join('_'), state: 'fresh' };
+}
+
+// Dynamically create corpse item definition
+function createCorpseItemDef(id: string): ItemDef | undefined {
+  const parsed = parseCorpseId(id);
+  if (!parsed) return undefined;
+
+  const template = enemyTemplates.find((t) => t.id === parsed.enemyId);
+  if (!template) return undefined;
+
+  const stateText =
+    parsed.state === 'butchered'
+      ? ' (Butchered)'
+      : parsed.state === 'skinned'
+        ? ' (Skinned)'
+        : '';
+
+  return {
+    id,
+    name: `${template.name} Corpse${stateText}`,
+    description: `The corpse of a ${template.name.toLowerCase()}.${stateText ? ' ' + stateText.slice(2, -1) + '.' : ''}`,
+    stackable: false,
+    tags: ['corpse'],
+    weight: 15.0, // Corpses are heavy!
+  };
+}
+
 export function getItem(id: string): ItemDef | undefined {
-  return items[id];
+  // Check static items first
+  if (items[id]) return items[id];
+
+  // Check for dynamic corpse items
+  return createCorpseItemDef(id);
+}
+
+export function isCorpseItem(id: string): boolean {
+  return parseCorpseId(id) !== null;
+}
+
+export function getCorpseInfo(
+  id: string,
+): { enemyId: string; state: 'fresh' | 'butchered' | 'skinned' } | null {
+  return parseCorpseId(id);
 }
 
 export function isEdible(item: ItemDef): boolean {

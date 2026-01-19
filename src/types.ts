@@ -26,6 +26,7 @@ export interface ActionResult {
   };
   foundLocation?: string; // Location ID discovered
   foundExit?: boolean; // Found exit from current location
+  clearCorpse?: boolean; // Clear pending corpse (picked up to inventory)
 }
 
 // === Skills System ===
@@ -310,7 +311,6 @@ export interface PendingCorpse {
   butchered: boolean; // Whether meat has been extracted
   skinned: boolean; // Whether hide has been extracted
   distance: number; // How far away the corpse is (increases when wandering)
-  carried: boolean; // Whether the player is carrying the corpse
 }
 
 export interface GameState {

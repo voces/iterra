@@ -187,6 +187,11 @@ export class Game {
       this.processCorpseCleanup();
     }
 
+    // Handle corpse pickup (clear pending corpse when added to inventory)
+    if (result.clearCorpse) {
+      this.state.pendingCorpse = null;
+    }
+
     // Handle encounter-specific results
     if (this.state.encounter) {
       // Determine action type for flee/chase/idle logic
@@ -425,9 +430,6 @@ export class Game {
     const corpse = this.state.pendingCorpse;
     if (!corpse) return;
 
-    // Carried corpses don't drop off
-    if (corpse.carried) return;
-
     // Drop-off chance increases with distance (like resource nodes)
     const baseDropOffChance = 0.25;
     const distanceMultiplier = 1 + corpse.distance * 0.1; // 10% more per distance
@@ -588,7 +590,6 @@ export class Game {
         butchered: false,
         skinned: false,
         distance: 0,
-        carried: false,
       };
 
       const actions: string[] = [];
