@@ -111,6 +111,28 @@
         <h2>Structures</h2>
         <div id="structures-list"></div>
       </section>
+
+      <section id="tracking-panel" class="collapsible collapsed">
+        <h2 class="section-header" data-section="tracking">
+          <span class="toggle-icon">▶</span>
+          Action Tracking
+        </h2>
+        <div id="tracking-content" class="section-content" style="display: none;">
+          <div id="tracking-status">
+            <span id="tracking-indicator" class="tracking-on">Recording</span>
+            <span id="tracking-count">0 actions</span>
+          </div>
+          <div id="tracking-summary"></div>
+          <div id="tracking-actions">
+            <button id="copy-tracking">Copy Data</button>
+            <button id="clear-tracking">Clear</button>
+            <label id="tracking-toggle">
+              <input type="checkbox" id="tracking-enabled" checked>
+              Enable tracking
+            </label>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 

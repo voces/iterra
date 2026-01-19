@@ -53,6 +53,12 @@ export class UI {
     locationDetails: HTMLElement;
     exitStatus: HTMLElement;
     discoveredLocations: HTMLElement;
+    trackingIndicator: HTMLElement;
+    trackingCount: HTMLElement;
+    trackingSummary: HTMLElement;
+    copyTracking: HTMLElement;
+    clearTracking: HTMLElement;
+    trackingEnabled: HTMLInputElement;
   };
 
   constructor(game: Game) {
@@ -96,6 +102,12 @@ export class UI {
       locationDetails: document.getElementById('location-details')!,
       exitStatus: document.getElementById('exit-status')!,
       discoveredLocations: document.getElementById('discovered-locations')!,
+      trackingIndicator: document.getElementById('tracking-indicator')!,
+      trackingCount: document.getElementById('tracking-count')!,
+      trackingSummary: document.getElementById('tracking-summary')!,
+      copyTracking: document.getElementById('copy-tracking')!,
+      clearTracking: document.getElementById('clear-tracking')!,
+      trackingEnabled: document.getElementById('tracking-enabled') as HTMLInputElement,
     };
 
     this.setupEventListeners();
@@ -167,6 +179,27 @@ export class UI {
         }
       });
     }
+
+    // Tracking panel event listeners
+    this.elements.copyTracking.addEventListener('click', () => {
+      const data = this.game.exportTrackingData();
+      navigator.clipboard.writeText(data).then(() => {
+        const btn = this.elements.copyTracking as HTMLButtonElement;
+        const originalText = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = originalText; }, 1500);
+      });
+    });
+
+    this.elements.clearTracking.addEventListener('click', () => {
+      this.game.clearTrackingRecords();
+      this.renderTracking();
+    });
+
+    this.elements.trackingEnabled.addEventListener('change', () => {
+      this.game.setTrackingEnabled(this.elements.trackingEnabled.checked);
+      this.renderTracking();
+    });
   }
 
   private subscribeToGame(): void {
@@ -174,6 +207,7 @@ export class UI {
       this.renderStatus();
       this.renderCharacterStats();
       this.renderSkills();
+      this.renderTracking();
       this.renderEquipment();
       this.renderInventory();
       this.renderStructures();
@@ -224,6 +258,7 @@ export class UI {
     this.renderStatus();
     this.renderCharacterStats();
     this.renderSkills();
+    this.renderTracking();
     this.renderEquipment();
     this.renderInventory();
     this.renderStructures();
@@ -708,6 +743,32 @@ export class UI {
 
   private handleActionClick(action: Action): void {
     this.game.performAction(action);
+  }
+
+  private renderTracking(): void {
+    const enabled = this.game.isTrackingEnabled();
+    const summary = this.game.getTrackingSummary();
+
+    // Update indicator
+    this.elements.trackingIndicator.textContent = enabled ? 'Recording' : 'Paused';
+    this.elements.trackingIndicator.className = enabled ? 'tracking-on' : 'tracking-off';
+
+    // Update count
+    this.elements.trackingCount.textContent = `${summary.totalActions} actions`;
+
+    // Update checkbox
+    this.elements.trackingEnabled.checked = enabled;
+
+    // Update summary
+    if (summary.totalActions > 0) {
+      const followPercent = (summary.followRate * 100).toFixed(0);
+      this.elements.trackingSummary.innerHTML = `
+        Suggestions followed: <span class="follow-rate">${followPercent}%</span>
+        (${summary.suggestedFollowed}/${summary.totalActions})
+      `;
+    } else {
+      this.elements.trackingSummary.innerHTML = 'No actions recorded yet.';
+    }
   }
 
   private renderLog(): void {
