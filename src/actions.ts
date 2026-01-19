@@ -1,5 +1,5 @@
 import type { Action, Actor, ActionContext } from './types.ts';
-import { getQualityName } from './types.ts';
+import { getQualityName, MAX_TWO_HANDED_BACK } from './types.ts';
 import {
   dealDamage,
   isAlive,
@@ -16,6 +16,8 @@ import {
   getWeaponAccuracy,
   getArmorDodgePenalty,
   switchToBackSlotWeapon,
+  countBackSlotWeapons,
+  isTwoHanded,
 } from './actor.ts';
 import { rollForResourceDiscovery, getResourceNode } from './resources.ts';
 import { getRecipe, canCraftRecipe, applyRecipe, attemptCraft } from './recipes.ts';
@@ -826,6 +828,24 @@ export function createWeaponAttackAction(weaponId: string | undefined, isFromBac
         return { success: false, message: 'Nothing to attack.' };
       }
 
+      // Check if this back slot attack would result in too many two-handed weapons on back
+      if (isFromBackSlot && weaponId) {
+        const currentWeapon = actor.equipment.mainHand;
+        if (currentWeapon && isTwoHanded(currentWeapon)) {
+          // Count two-handed weapons on back, excluding the one we're drawing
+          const counts = countBackSlotWeapons(actor);
+          const twoHandedOnBackAfterDrawing = isTwoHanded(weaponId) ? counts.twoHanded - 1 : counts.twoHanded;
+          // If adding current weapon to back would exceed limit, block
+          if (twoHandedOnBackAfterDrawing + 1 > MAX_TWO_HANDED_BACK) {
+            const currentWeaponName = getItem(currentWeapon)?.name?.toLowerCase() ?? 'weapon';
+            return {
+              success: false,
+              message: `Cannot switch to ${weaponName.toLowerCase()} - no room for your ${currentWeaponName} on your back.`,
+            };
+          }
+        }
+      }
+
       // For ranged weapons (bow), require and consume ammo
       if (isRangedWeapon && weaponId === 'bow') {
         if (getItemCount(actor, 'arrow') <= 0) {
@@ -882,6 +902,10 @@ export function createWeaponAttackAction(weaponId: string | undefined, isFromBac
       } : undefined;
 
       if (!result.hit) {
+        // Swap weapons after attacking from back slot (even on miss)
+        if (isFromBackSlot && weaponId) {
+          switchToBackSlotWeapon(actor, weaponId);
+        }
         const msg = result.dodged
           ? `The ${enemy.name} dodges your ${actionVerb}!`
           : `You ${actionVerb} at the ${enemy.name} but miss!`;
@@ -899,6 +923,11 @@ export function createWeaponAttackAction(weaponId: string | undefined, isFromBac
 
       const critText = result.critical ? ' Critical hit!' : '';
       const levelUpText = skillGain.levelsGained > 0 ? ` ${weaponSkill} leveled up!` : '';
+
+      // Swap weapons after attacking from back slot
+      if (isFromBackSlot && weaponId) {
+        switchToBackSlotWeapon(actor, weaponId);
+      }
 
       if (!isAlive(enemy)) {
         return {

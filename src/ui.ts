@@ -423,15 +423,6 @@ export class UI {
     const equipment = player.equipment;
     const inCombat = this.game.state.encounter !== null;
 
-    const slots: { slot: EquipSlot; label: string }[] = [
-      { slot: 'mainHand', label: 'Main Hand' },
-      { slot: 'offHand', label: 'Off Hand' },
-      { slot: 'head', label: 'Head' },
-      { slot: 'chest', label: 'Chest' },
-      { slot: 'legs', label: 'Legs' },
-      { slot: 'feet', label: 'Feet' },
-    ];
-
     // Get total bonuses for display
     const damageRange = getDamageRange(player);
     const armorBonus = getEquipmentArmorBonus(player);
@@ -453,7 +444,13 @@ export class UI {
       ? equipment.mainHand
       : null;
 
-    for (const { slot, label } of slots) {
+    // Weapon slots: mainHand, offHand, then back slots
+    const weaponSlots: { slot: EquipSlot; label: string }[] = [
+      { slot: 'mainHand', label: 'Main Hand' },
+      { slot: 'offHand', label: 'Off Hand' },
+    ];
+
+    for (const { slot, label } of weaponSlots) {
       const itemId = equipment[slot];
 
       // Skip offHand display for two-handed weapons
@@ -496,44 +493,72 @@ export class UI {
       `;
     }
 
-    // Back Slots Section
+    // Back slots rendered inline after hand slots
     const backSlotWeapons = getBackSlotWeapons(player);
-    if (backSlotWeapons.length > 0 || !inCombat) {
-      html += `<div class="back-slots-section">`;
-      html += `<div class="back-slots-header">Back Slots (${backSlotWeapons.length}/3)</div>`;
+    const backSlotLabels = ['Left Back', 'Mid Back', 'Right Back'];
+    for (let i = 0; i < 3; i++) {
+      const weaponId = backSlotWeapons[i];
+      const weapon = weaponId ? getItem(weaponId) : null;
+      const weaponName = weapon?.name ?? 'Empty';
+      const handLabel = weaponId ? (isTwoHanded(weaponId) ? '2H' : '1H') : '';
+      const isEquipped = weaponId && weaponId === equipment.mainHand;
+      const isSelected = this.selectedBackSlot === i;
+      const selectedClass = isSelected ? 'selected' : '';
+      const equippedClass = isEquipped ? 'equipped' : '';
 
-      if (backSlotWeapons.length === 0) {
-        html += `<div class="back-slots-empty">No weapons on back</div>`;
-      } else {
-        for (let i = 0; i < backSlotWeapons.length; i++) {
-          const weaponId = backSlotWeapons[i];
-          const weapon = getItem(weaponId);
-          const weaponName = weapon?.name ?? weaponId;
-          const handLabel = isTwoHanded(weaponId) ? '2H' : '1H';
-          const isEquipped = weaponId === equipment.mainHand;
-          const isSelected = this.selectedBackSlot === i;
-          const selectedClass = isSelected ? 'selected' : '';
-          const equippedClass = isEquipped ? 'equipped' : '';
-
-          let actionsHtml = '';
-          if (isSelected && !inCombat && !isEquipped) {
-            const actions: string[] = [];
-            actions.push(`<button class="item-action-btn remove-back-slot-btn" data-item-id="${weaponId}">Remove from Back</button>`);
-            actionsHtml = `<div class="item-expanded-actions">${actions.join('')}</div>`;
-          }
-
-          html += `
-            <div class="back-slot-item ${selectedClass} ${equippedClass}" data-back-index="${i}">
-              <div class="slot-header">
-                <span class="back-slot-weapon">${weaponName} (${handLabel})</span>
-                ${isEquipped ? '<span class="equipped-badge">Equipped</span>' : ''}
-              </div>
-              ${actionsHtml}
-            </div>
-          `;
-        }
+      let actionsHtml = '';
+      if (isSelected && weaponId && !inCombat && !isEquipped) {
+        const actions: string[] = [];
+        actions.push(`<button class="item-action-btn remove-back-slot-btn" data-item-id="${weaponId}">Remove from Back</button>`);
+        actionsHtml = `<div class="item-expanded-actions">${actions.join('')}</div>`;
       }
-      html += `</div>`;
+
+      const displayName = weaponId ? `${weaponName} (${handLabel})` : 'Empty';
+
+      html += `
+        <div class="equipment-slot back-slot-item ${selectedClass} ${equippedClass}" data-back-index="${i}">
+          <div class="slot-header">
+            <span class="slot-label">${backSlotLabels[i]}:</span>
+            <span class="slot-item">${displayName}</span>
+            ${isEquipped ? '<span class="equipped-badge">Equipped</span>' : ''}
+          </div>
+          ${actionsHtml}
+        </div>
+      `;
+    }
+
+    // Armor slots
+    const armorSlots: { slot: EquipSlot; label: string }[] = [
+      { slot: 'head', label: 'Head' },
+      { slot: 'chest', label: 'Chest' },
+      { slot: 'legs', label: 'Legs' },
+      { slot: 'feet', label: 'Feet' },
+    ];
+
+    for (const { slot, label } of armorSlots) {
+      const itemId = equipment[slot];
+      const item = itemId ? getItem(itemId) : null;
+      const itemName = item?.name ?? 'Empty';
+      const isSelected = this.selectedEquipSlot === slot;
+      const selectedClass = isSelected ? 'selected' : '';
+
+      // Build action buttons for expanded view
+      let actionsHtml = '';
+      if (isSelected && itemId && !inCombat) {
+        const actions: string[] = [];
+        actions.push(`<button class="item-action-btn unequip-btn" data-slot="${slot}">Unequip</button>`);
+        actionsHtml = `<div class="item-expanded-actions">${actions.join('')}</div>`;
+      }
+
+      html += `
+        <div class="equipment-slot ${selectedClass}" data-slot="${slot}">
+          <div class="slot-header">
+            <span class="slot-label">${label}:</span>
+            <span class="slot-item">${itemName}</span>
+          </div>
+          ${actionsHtml}
+        </div>
+      `;
     }
 
     this.elements.equipmentList.innerHTML = html;
