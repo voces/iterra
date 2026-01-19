@@ -1068,10 +1068,23 @@ export const flee: Action = {
     }
 
     const enemy = context.encounter.enemy;
+    const aggressiveness = context.encounter.aggressiveness;
+
+    // Passive creatures (aggressiveness < 0.2) don't actively block escape
+    if (aggressiveness < 0.2) {
+      return {
+        success: true,
+        message: `You back away from the ${enemy.name} and leave.`,
+        fled: true,
+      };
+    }
+
     const playerSpeed = getEffectiveSpeed(actor);
     const enemySpeed = getEffectiveSpeed(enemy);
     const speedRatio = playerSpeed / enemySpeed;
-    const baseChance = 0.4;
+    // Base chance scales with aggressiveness: passive enemies are easier to flee
+    // At aggressiveness 0.2: baseChance = 0.64, at 1.0: baseChance = 0.4
+    const baseChance = 0.4 + (1 - aggressiveness) * 0.3;
     const fleeChance = Math.min(0.9, baseChance * speedRatio);
 
     if (Math.random() < fleeChance) {
