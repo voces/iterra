@@ -54,6 +54,10 @@ export class Game {
   private actionTrackingRecords: ActionTrackingRecord[] = [];
   private trackingEnabled: boolean = true;
 
+  // Location cache to avoid repeated lookups
+  private currentLocationCache: { id: string | null; name: string; isSafe: boolean } | null = null;
+  private enterableLocationsCache: Array<{ id: string; name: string; entrances: number; closestDistance: number }> | null = null;
+
   constructor() {
     this.state = this.createInitialState();
     // Load persisted tracking records
@@ -83,6 +87,7 @@ export class Game {
     // Clear saved game data when starting fresh
     clearSave();
     this.state = this.createInitialState();
+    this.invalidateLocationCache();
     // Note: tracking records are NOT cleared on restart - they persist for analysis
     this.log('A new journey begins...');
     this.emit('turn');
@@ -368,6 +373,8 @@ export class Game {
   private processLocationDropOff(): void {
     // Each location entrance has a chance to drop off when wandering
     // Entrances that don't drop off increase in distance
+    let modified = false;
+
     for (const [locationId, discovered] of Object.entries(this.state.discoveredLocations)) {
       const location = getLocation(locationId);
       if (!location) continue;
@@ -387,9 +394,11 @@ export class Game {
 
         if (Math.random() < dropOffChance) {
           entrancesToRemove.push(i);
+          modified = true;
         } else {
           // Increase distance for entrances that survive
           entrance.distance++;
+          modified = true;
         }
       }
 
@@ -402,6 +411,11 @@ export class Game {
       if (discovered.entrances.length === 0) {
         delete this.state.discoveredLocations[locationId];
       }
+    }
+
+    // Invalidate cache if any entrances were modified
+    if (modified) {
+      this.invalidateLocationCache();
     }
   }
 
@@ -784,6 +798,7 @@ export class Game {
     const savedState = loadGame();
     if (savedState) {
       this.state = savedState;
+      this.invalidateLocationCache();
       this.emit('load');
       this.emit('turn'); // Trigger UI update
       return true;
@@ -1287,6 +1302,7 @@ export class Game {
       this.state.discoveredLocations[locationId].entrances.push({ distance: 0 });
     }
 
+    this.invalidateLocationCache();
     this.log(location.discoveryMessage);
     this.emit('location-discovered');
   }
@@ -1329,6 +1345,7 @@ export class Game {
     // Clear resource nodes when entering new location
     this.state.availableNodes = [];
 
+    this.invalidateLocationCache();
     this.log(`You enter ${location.name}.`);
     this.emit('location-entered');
     return true;
@@ -1354,6 +1371,7 @@ export class Game {
     // Clear resource nodes when exiting
     this.state.availableNodes = [];
 
+    this.invalidateLocationCache();
     if (previousLocation === null) {
       this.log(`You exit ${currentLocation?.name ?? 'the location'} and return to the wilderness.`);
     } else {
@@ -1377,18 +1395,30 @@ export class Game {
     this.emit('exit-found');
   }
 
-  // Get current location info
+  // Invalidate location caches - call when location state changes
+  private invalidateLocationCache(): void {
+    this.currentLocationCache = null;
+    this.enterableLocationsCache = null;
+  }
+
+  // Get current location info (cached)
   getCurrentLocation(): { id: string | null; name: string; isSafe: boolean } {
+    if (this.currentLocationCache !== null) {
+      return this.currentLocationCache;
+    }
+
     if (this.state.currentLocation === null) {
-      return { id: null, name: 'Wilderness', isSafe: false };
+      this.currentLocationCache = { id: null, name: 'Wilderness', isSafe: false };
+      return this.currentLocationCache;
     }
 
     const location = getLocation(this.state.currentLocation);
-    return {
+    this.currentLocationCache = {
       id: this.state.currentLocation,
       name: location?.name ?? 'Unknown',
       isSafe: location?.isSafe ?? false,
     };
+    return this.currentLocationCache;
   }
 
   // Get info about available resource nodes
@@ -1435,8 +1465,12 @@ export class Game {
     return baseCost;
   }
 
-  // Get list of locations that can be entered from current position
+  // Get list of locations that can be entered from current position (cached)
   getEnterableLocations(): Array<{ id: string; name: string; entrances: number; closestDistance: number }> {
+    if (this.enterableLocationsCache !== null) {
+      return this.enterableLocationsCache;
+    }
+
     const result: Array<{ id: string; name: string; entrances: number; closestDistance: number }> = [];
 
     for (const [locationId, discovered] of Object.entries(this.state.discoveredLocations)) {
@@ -1460,6 +1494,7 @@ export class Game {
       });
     }
 
+    this.enterableLocationsCache = result;
     return result;
   }
 }
