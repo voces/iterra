@@ -1,5 +1,5 @@
 import type { ItemDef, ItemInstance, ItemQuality } from './types.ts';
-import { QUALITY_MULTIPLIERS, QUALITY_NAMES } from './types.ts';
+import { QUALITY_NAMES, getQualityMultiplier, getQualityName, getQualityTier } from './types.ts';
 
 // Item registry - all items in the game
 export const items: Record<string, ItemDef> = {
@@ -230,17 +230,23 @@ export function getItemsByTag(tag: string): ItemDef[] {
 
 // === Item Instance Creation ===
 
-// Create an item instance with quality applied
-export function createItemInstance(itemId: string, quality: ItemQuality): ItemInstance {
+// Create an item instance with continuous quality value (0-100)
+export function createItemInstanceWithQuality(itemId: string, qualityValue: number): ItemInstance {
   const baseDef = getItem(itemId);
   if (!baseDef) {
     throw new Error(`Unknown item: ${itemId}`);
   }
 
-  const multiplier = QUALITY_MULTIPLIERS[quality];
+  const multiplier = getQualityMultiplier(qualityValue);
+  const tier = getQualityTier(qualityValue);
+
+  // Map tier to legacy quality type for backwards compatibility
+  const legacyQuality: ItemQuality = tier === 'broken' ? 'poor' : tier as ItemQuality;
+
   const instance: ItemInstance = {
     itemId,
-    quality,
+    quality: legacyQuality,
+    qualityValue,
   };
 
   // Apply quality multiplier to numeric stats
@@ -264,12 +270,37 @@ export function createItemInstance(itemId: string, quality: ItemQuality): ItemIn
   return instance;
 }
 
+// Legacy: Create an item instance with discrete quality tier
+export function createItemInstance(itemId: string, quality: ItemQuality): ItemInstance {
+  // Convert legacy quality to continuous value
+  const qualityValueMap: Record<ItemQuality, number> = {
+    poor: 15,
+    normal: 37,
+    good: 62,
+    excellent: 82,
+    masterwork: 95,
+  };
+  const qualityValue = qualityValueMap[quality];
+  const instance = createItemInstanceWithQuality(itemId, qualityValue);
+  instance.quality = quality; // Override to keep exact legacy quality
+  return instance;
+}
+
 // Get display name for an item instance (includes quality prefix)
 export function getItemInstanceName(instance: ItemInstance): string {
   const baseDef = getItem(instance.itemId);
   if (!baseDef) return 'Unknown Item';
 
-  // Don't show quality for normal items
+  // Use continuous quality value if available
+  if (instance.qualityValue !== undefined) {
+    const qualityName = getQualityName(instance.qualityValue);
+    if (qualityName === 'Normal') {
+      return baseDef.name;
+    }
+    return `${qualityName} ${baseDef.name}`;
+  }
+
+  // Fallback to legacy quality
   if (instance.quality === 'normal') {
     return baseDef.name;
   }

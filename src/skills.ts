@@ -10,6 +10,8 @@ export const SKILL_TYPES: SkillType[] = [
   'throwing',
   'shield',
   'crafting',
+  'butchering',
+  'skinning',
 ];
 
 export const COMBAT_SKILLS: SkillType[] = [
@@ -22,6 +24,8 @@ export const COMBAT_SKILLS: SkillType[] = [
 ];
 
 export const CRAFTING_SKILLS: SkillType[] = ['crafting'];
+
+export const HARVESTING_SKILLS: SkillType[] = ['butchering', 'skinning'];
 
 // XP scaling: XP needed = BASE_XP * level^XP_EXPONENT
 const BASE_SKILL_XP = 50;
@@ -37,6 +41,8 @@ export const SKILL_NAMES: Record<SkillType, string> = {
   throwing: 'Throwing',
   shield: 'Shield',
   crafting: 'Crafting',
+  butchering: 'Butchering',
+  skinning: 'Skinning',
 };
 
 export const SKILL_DESCRIPTIONS: Record<SkillType, string> = {
@@ -47,6 +53,8 @@ export const SKILL_DESCRIPTIONS: Record<SkillType, string> = {
   throwing: 'Throwing weapons accurately. Rocks, javelins, etc.',
   shield: 'Shield blocking effectiveness. Better block chance and reduction.',
   crafting: 'General crafting ability. Better quality items, fewer failures.',
+  butchering: 'Extracting meat from corpses. Higher yield and fewer failures.',
+  skinning: 'Extracting hides from corpses. Higher yield and fewer failures.',
 };
 
 // === Skill Creation ===
@@ -125,7 +133,48 @@ export function getCraftingFailureChance(skillLevel: number): number {
   return baseFailure / (1 + skillLevel / 50);
 }
 
-// Quality roll based on crafting skill (diminishing returns)
+// === Harvesting Skill Effects ===
+
+// Harvesting failure chance based on skill level (diminishing returns)
+// At level 0: 30% failure chance
+// Uses same diminishing returns formula as crafting
+export function getHarvestingFailureChance(skillLevel: number): number {
+  const baseFailure = 0.3;
+  return baseFailure / (1 + skillLevel / 50);
+}
+
+// Harvesting yield bonus based on skill level (diminishing returns)
+// At level 0: 0% bonus
+// At level 100: 50% bonus, level 200: 67%, approaches 100% asymptotically
+export function getHarvestingYieldBonus(skillLevel: number): number {
+  return skillLevel / (skillLevel + 100);
+}
+
+// Roll continuous quality value (0-100) based on skill level
+// Uses diminishing returns for skill effect
+// Base quality range shifts up with skill, with random variance
+export function rollQualityValue(skillLevel: number): number {
+  // Use diminishing returns: t approaches 1 as skill increases
+  // At level 0: t=0, level 100: t=0.5, level 200: t=0.67, level 400: t=0.8
+  const t = skillLevel / (skillLevel + 100);
+
+  // Base quality increases with skill (0-70 range based on skill)
+  const baseQuality = t * 70;
+
+  // Random variance (±15 at low skill, ±10 at high skill)
+  const variance = 15 - 5 * t;
+  const randomOffset = (Math.random() - 0.5) * 2 * variance;
+
+  // Small chance for exceptional quality (lucky roll)
+  const luckyBonus = Math.random() < 0.05 ? 10 + Math.random() * 10 : 0;
+
+  // Clamp to 0-100 range
+  const quality = Math.max(0, Math.min(100, baseQuality + randomOffset + luckyBonus));
+
+  return Math.round(quality);
+}
+
+// Legacy: Quality roll based on crafting skill (diminishing returns)
 // Returns the quality tier for a crafted item
 export function rollCraftingQuality(skillLevel: number): ItemQuality {
   const roll = Math.random() * 100;
@@ -165,6 +214,10 @@ export const SKILL_XP_AWARDS = {
   // Crafting XP
   craftSuccess: 15,
   craftFailure: 5, // Still learn from failures
+
+  // Harvesting XP
+  harvestSuccess: 12,
+  harvestFailure: 4, // Still learn from failures
 };
 
 // Map weapon types to skills

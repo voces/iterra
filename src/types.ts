@@ -43,7 +43,12 @@ export type CombatSkillType =
 export type CraftingSkillType =
   | 'crafting'; // General crafting (can subdivide later: weaponsmithing, armorsmithing, etc.)
 
-export type SkillType = CombatSkillType | CraftingSkillType;
+// Harvesting skills - improve with harvesting corpses
+export type HarvestingSkillType =
+  | 'butchering' // Extracting meat from corpses
+  | 'skinning'; // Extracting hides/leather from corpses
+
+export type SkillType = CombatSkillType | CraftingSkillType | HarvestingSkillType;
 
 export interface Skill {
   level: number; // 1-100
@@ -56,9 +61,57 @@ export type Skills = Record<SkillType, Skill>;
 
 // === Item Quality System ===
 
+// Quality is a continuous value from 0-100
+// Text descriptors for quality ranges
+export type QualityTier = 'broken' | 'poor' | 'normal' | 'good' | 'excellent' | 'masterwork';
+
+// Quality thresholds (value must be >= threshold to reach tier)
+export const QUALITY_THRESHOLDS: { tier: QualityTier; minValue: number }[] = [
+  { tier: 'masterwork', minValue: 90 },
+  { tier: 'excellent', minValue: 75 },
+  { tier: 'good', minValue: 50 },
+  { tier: 'normal', minValue: 25 },
+  { tier: 'poor', minValue: 10 },
+  { tier: 'broken', minValue: 0 },
+];
+
+// Breakage threshold - items below this quality break during crafting
+export const QUALITY_BREAKAGE_THRESHOLD = 10;
+
+// Display names for quality tiers
+export const QUALITY_TIER_NAMES: Record<QualityTier, string> = {
+  broken: 'Shoddy',
+  poor: 'Poor',
+  normal: 'Normal',
+  good: 'Good',
+  excellent: 'Excellent',
+  masterwork: 'Masterwork',
+};
+
+// Get quality tier from numeric value
+export function getQualityTier(value: number): QualityTier {
+  for (const { tier, minValue } of QUALITY_THRESHOLDS) {
+    if (value >= minValue) return tier;
+  }
+  return 'broken';
+}
+
+// Get quality multiplier from numeric value (linear interpolation)
+// 0 quality = 0.5x, 50 quality = 1.0x, 100 quality = 1.5x
+export function getQualityMultiplier(value: number): number {
+  return 0.5 + (value / 100) * 1.0;
+}
+
+// Get display name for quality value
+export function getQualityName(value: number): string {
+  const tier = getQualityTier(value);
+  return QUALITY_TIER_NAMES[tier];
+}
+
+// Legacy discrete quality type (kept for backwards compatibility)
 export type ItemQuality = 'poor' | 'normal' | 'good' | 'excellent' | 'masterwork';
 
-// Quality multipliers for item stats
+// Legacy quality multipliers (for backwards compatibility)
 export const QUALITY_MULTIPLIERS: Record<ItemQuality, number> = {
   poor: 0.7,
   normal: 1.0,
@@ -67,7 +120,7 @@ export const QUALITY_MULTIPLIERS: Record<ItemQuality, number> = {
   masterwork: 1.5,
 };
 
-// Display names for quality
+// Legacy display names (for backwards compatibility)
 export const QUALITY_NAMES: Record<ItemQuality, string> = {
   poor: 'Poor',
   normal: 'Normal',
@@ -79,7 +132,8 @@ export const QUALITY_NAMES: Record<ItemQuality, string> = {
 // Instance of an item with quality (for equipped/inventory items with variance)
 export interface ItemInstance {
   itemId: string;
-  quality: ItemQuality;
+  quality: ItemQuality; // Legacy discrete quality
+  qualityValue: number; // New continuous quality (0-100)
   // Actual stats after quality modifier applied
   minDamage?: number;
   maxDamage?: number;
@@ -126,6 +180,11 @@ export interface EnemyStatGrowth {
 
 // Inventory is a flexible map of item IDs to quantities
 export type Inventory = Record<string, number>;
+
+// Material quality tracking - stores quality values for each item in inventory
+// Each entry is an array of quality values (one per item unit)
+// When consuming materials, lowest quality items are used first
+export type MaterialQualities = Record<string, number[]>;
 
 // Equipment slots
 export type EquipSlot = 'mainHand' | 'offHand' | 'head' | 'chest' | 'legs' | 'feet';
@@ -211,6 +270,7 @@ export interface Actor {
   saturation: number;
   maxSaturation: number;
   inventory: Inventory;
+  materialQualities: MaterialQualities; // Quality values for materials
   equipment: Equipment;
   equipmentInstances: EquipmentInstances; // Item instances with quality
   actions: Action[];
@@ -242,6 +302,14 @@ export interface Encounter {
   projectilesUsed: ProjectileTracking;
 }
 
+// Corpse that can be harvested for resources
+export interface PendingCorpse {
+  enemyId: string; // The template ID of the enemy
+  enemyName: string; // Display name
+  butchered: boolean; // Whether meat has been extracted
+  skinned: boolean; // Whether hide has been extracted
+}
+
 export interface GameState {
   player: Actor;
   turn: number;
@@ -249,7 +317,8 @@ export interface GameState {
   encounter: Encounter | null;
   availableNodes: DiscoveredNode[]; // Resource nodes with distance tracking
   structures: Set<string>; // IDs of structures the player has built
-  pendingLoot: Inventory | null; // Loot waiting to be picked up
+  pendingLoot: Inventory | null; // Loot waiting to be picked up (for bandits, etc.)
+  pendingCorpse: PendingCorpse | null; // Corpse waiting to be harvested
   gameOver: boolean;
   // Location system
   currentLocation: string | null; // Current location ID (null = wilderness)

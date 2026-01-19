@@ -23,7 +23,7 @@ import {
   endEncounter,
   calculateProjectileRecovery,
 } from './encounter.ts';
-import { getRandomEnemy, generateLoot, getXpReward } from './enemies.ts';
+import { getRandomEnemy, generateLoot, getXpReward, getEnemyTemplate, canButcher, canSkin } from './enemies.ts';
 import { getResourceNode } from './resources.ts';
 import { getItem } from './items.ts';
 import {
@@ -63,6 +63,7 @@ export class Game {
       availableNodes: [], // Resource nodes with distance tracking
       structures: new Set(),
       pendingLoot: null,
+      pendingCorpse: null,
       gameOver: false,
       // Location system
       currentLocation: null,
@@ -155,6 +156,11 @@ export class Game {
     // Handle resource depletion after gathering
     if (action.tags.includes('gathering')) {
       this.processResourceDepletion(action.id);
+    }
+
+    // Handle corpse cleanup after harvesting
+    if (action.tags.includes('harvesting')) {
+      this.processCorpseCleanup(action.id);
     }
 
     // Handle encounter-specific results
@@ -378,6 +384,28 @@ export class Game {
     }
   }
 
+  private processCorpseCleanup(actionId: string): void {
+    const corpse = this.state.pendingCorpse;
+    if (!corpse) return;
+
+    // If leave-corpse was used, always clear
+    if (actionId === 'leave-corpse') {
+      this.state.pendingCorpse = null;
+      return;
+    }
+
+    // Check if corpse is fully harvested
+    const canBeButchered = canButcher(corpse.enemyId);
+    const canBeSkinned = canSkin(corpse.enemyId);
+
+    const butcheringDone = !canBeButchered || corpse.butchered;
+    const skinningDone = !canBeSkinned || corpse.skinned;
+
+    if (butcheringDone && skinningDone) {
+      this.state.pendingCorpse = null;
+    }
+  }
+
   private checkForEncounter(chance: number = 0.25): void {
     // No encounters in safe locations
     const locationInfo = this.getCurrentLocation();
@@ -467,7 +495,7 @@ export class Game {
           this.emit('level-up');
         }
 
-        this.setPendingLoot(enemy);
+        this.handleEnemyDeath(enemy);
         this.recoverProjectiles();
         break;
       case 'defeat':
@@ -486,6 +514,34 @@ export class Game {
 
     this.state.encounter = null;
     this.emit('encounter-end');
+  }
+
+  private handleEnemyDeath(enemy: typeof this.state.player): void {
+    const template = getEnemyTemplate(enemy);
+
+    // Bandits and enemies with inventory drop loot directly
+    if (template?.usesInventory) {
+      this.setPendingLoot(enemy);
+      return;
+    }
+
+    // Animals/monsters leave a corpse for harvesting
+    const canBeButchered = canButcher(enemy.id);
+    const canBeSkinned = canSkin(enemy.id);
+
+    if (canBeButchered || canBeSkinned) {
+      this.state.pendingCorpse = {
+        enemyId: enemy.id,
+        enemyName: enemy.name,
+        butchered: false,
+        skinned: false,
+      };
+
+      const actions: string[] = [];
+      if (canBeButchered) actions.push('butchered');
+      if (canBeSkinned) actions.push('skinned');
+      this.log(`The ${enemy.name}'s corpse can be ${actions.join(' and ')}.`);
+    }
   }
 
   private recoverProjectiles(): void {
@@ -812,6 +868,28 @@ export class Game {
         return false;
       }
 
+      // Check harvesting action requirements
+      if (action.tags.includes('harvesting')) {
+        const corpse = this.state.pendingCorpse;
+        if (!corpse) {
+          return false;
+        }
+
+        // Butcher requires corpse that can be butchered and hasn't been
+        if (action.id === 'butcher') {
+          if (!canButcher(corpse.enemyId) || corpse.butchered) {
+            return false;
+          }
+        }
+
+        // Skin requires corpse that can be skinned and hasn't been
+        if (action.id === 'skin') {
+          if (!canSkin(corpse.enemyId) || corpse.skinned) {
+            return false;
+          }
+        }
+      }
+
       // Exit location only available when in a location with found exit
       if (action.id === 'exit-location') {
         if (this.state.currentLocation === null || !this.state.foundExit) {
@@ -894,6 +972,15 @@ export class Game {
       score += 50;
     }
 
+    // Harvesting actions when corpse available - high priority
+    if (action.tags.includes('harvesting')) {
+      if (action.id === 'butcher' || action.id === 'skin') {
+        score += 90; // High priority to harvest before corpse decays
+      } else if (action.id === 'leave-corpse') {
+        score += 20; // Lower priority than actually harvesting
+      }
+    }
+
     // Crafting priorities based on progression
     if (action.tags.includes('crafting')) {
       // Arrows are high priority if you have a bow
@@ -971,6 +1058,7 @@ export class Game {
     // Categorize actions
     const categories: Record<string, Action[]> = {
       'Suggested': [],
+      'Harvest': [],
       'Explore': [],
       'Gather': [],
       'Eat': [],
@@ -987,6 +1075,8 @@ export class Game {
         categories['Explore'].push(action);
       } else if (action.id === 'exit-location' || action.id.startsWith('enter-location-')) {
         categories['Explore'].push(action);
+      } else if (action.tags.includes('harvesting')) {
+        categories['Harvest'].push(action);
       } else if (action.tags.includes('gathering')) {
         categories['Gather'].push(action);
       } else if (action.tags.includes('consumption')) {

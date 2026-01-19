@@ -1,4 +1,4 @@
-import type { Actor, Action, Inventory, Equipment, EquipSlot, Stats, Skills, EquipmentInstances } from './types.ts';
+import type { Actor, Action, Inventory, Equipment, EquipSlot, Stats, Skills, EquipmentInstances, MaterialQualities } from './types.ts';
 import {
   createLevelInfo,
   getMaxHealthBonus,
@@ -19,6 +19,7 @@ export function createActor(
     saturation?: number;
     maxSaturation?: number;
     inventory?: Inventory;
+    materialQualities?: MaterialQualities;
     equipment?: Equipment;
     equipmentInstances?: EquipmentInstances;
     actions?: Action[];
@@ -36,6 +37,7 @@ export function createActor(
     saturation = 10, // Start at nominal max
     maxSaturation = 20, // Can store extra for healing
     inventory = {},
+    materialQualities = {},
     equipment = {},
     equipmentInstances = {},
     actions = [],
@@ -63,6 +65,7 @@ export function createActor(
     saturation,
     maxSaturation: effectiveMaxSaturation,
     inventory: { ...inventory },
+    materialQualities: { ...materialQualities },
     equipment: { ...equipment },
     equipmentInstances: { ...equipmentInstances },
     actions: [...actions],
@@ -163,13 +166,77 @@ export function addItem(actor: Actor, itemId: string, amount: number): void {
   actor.inventory[itemId] = (actor.inventory[itemId] ?? 0) + amount;
 }
 
+// Add item with quality tracking
+export function addItemWithQuality(actor: Actor, itemId: string, amount: number, quality: number): void {
+  actor.inventory[itemId] = (actor.inventory[itemId] ?? 0) + amount;
+
+  // Initialize quality array if needed
+  if (!actor.materialQualities[itemId]) {
+    actor.materialQualities[itemId] = [];
+  }
+
+  // Add quality values for each item
+  for (let i = 0; i < amount; i++) {
+    actor.materialQualities[itemId].push(quality);
+  }
+
+  // Keep sorted by quality (lowest first for consumption)
+  actor.materialQualities[itemId].sort((a, b) => a - b);
+}
+
 export function removeItem(actor: Actor, itemId: string, amount: number): boolean {
   const current = actor.inventory[itemId] ?? 0;
   if (current < amount) {
     return false;
   }
   actor.inventory[itemId] = current - amount;
+
+  // Also remove quality values (lowest first)
+  if (actor.materialQualities[itemId]) {
+    actor.materialQualities[itemId].splice(0, amount);
+    if (actor.materialQualities[itemId].length === 0) {
+      delete actor.materialQualities[itemId];
+    }
+  }
+
   return true;
+}
+
+// Remove items and return their quality values (lowest quality first)
+export function removeItemsWithQuality(actor: Actor, itemId: string, amount: number): number[] | null {
+  const current = actor.inventory[itemId] ?? 0;
+  if (current < amount) {
+    return null;
+  }
+
+  actor.inventory[itemId] = current - amount;
+
+  // Get quality values being removed (lowest first)
+  const qualities: number[] = [];
+  if (actor.materialQualities[itemId]) {
+    for (let i = 0; i < amount && actor.materialQualities[itemId].length > 0; i++) {
+      qualities.push(actor.materialQualities[itemId].shift()!);
+    }
+    if (actor.materialQualities[itemId].length === 0) {
+      delete actor.materialQualities[itemId];
+    }
+  } else {
+    // No quality tracking for this item, return default quality (50)
+    for (let i = 0; i < amount; i++) {
+      qualities.push(50);
+    }
+  }
+
+  return qualities;
+}
+
+// Get average quality of an item in inventory
+export function getAverageQuality(actor: Actor, itemId: string): number {
+  const qualities = actor.materialQualities[itemId];
+  if (!qualities || qualities.length === 0) {
+    return 50; // Default quality if not tracked
+  }
+  return qualities.reduce((sum, q) => sum + q, 0) / qualities.length;
 }
 
 export function hasItem(actor: Actor, itemId: string, amount: number = 1): boolean {
