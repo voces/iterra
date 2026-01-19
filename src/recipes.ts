@@ -6,7 +6,7 @@ import {
   addSkillXp,
   SKILL_XP_AWARDS,
 } from './skills.ts';
-import { createItemInstanceWithQuality, canHaveQuality } from './items.ts';
+import { createItemInstanceWithQuality, canHaveQuality, getItem } from './items.ts';
 import { removeItemsWithQuality, addItemWithQuality } from './actor.ts';
 
 // Recipe registry - crafting recipes
@@ -292,7 +292,10 @@ function buildCraftSuccessMessage(
   }
 
   const itemDescriptions = Array.from(itemCounts.entries())
-    .map(([itemId, cnt]) => (cnt > 1 ? `${cnt}x ${itemId}` : itemId))
+    .map(([itemId, cnt]) => {
+      const name = getItem(itemId)?.name ?? itemId;
+      return cnt > 1 ? `${cnt}x ${name}` : name;
+    })
     .join(', ');
 
   const qualityName = getQualityName(qualityValue);
