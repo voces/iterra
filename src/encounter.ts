@@ -31,10 +31,15 @@ export function createEncounter(
   playerLevel: number = 1,
   locationId: string | null = null
 ): Encounter {
+  const actualEnemy = enemy ?? getRandomEnemy(playerLevel, locationId);
+  const template = getEnemyTemplate(actualEnemy);
+  const baseAggressiveness = template?.aggressiveness ?? 0.5;
+
   return {
-    enemy: enemy ?? getRandomEnemy(playerLevel, locationId),
+    enemy: actualEnemy,
     playerFleeing: false,
     enemyFleeing: false,
+    aggressiveness: baseAggressiveness,
     ended: false,
     projectilesUsed: {
       arrows: { hit: 0, dodged: 0, blocked: 0, missed: 0 },
@@ -65,6 +70,7 @@ export function getEnemyAction(
 ): EnemyAction {
   const enemy = encounter.enemy;
   const template = getEnemyTemplate(enemy);
+  const aggressiveness = encounter.aggressiveness;
 
   // If player is fleeing, enemy decides whether to chase
   if (encounter.playerFleeing) {
@@ -76,10 +82,19 @@ export function getEnemyAction(
     return enemyFleeAttempt(encounter, player);
   }
 
+  // Passive creatures (low aggressiveness) don't attack unprovoked
+  // They just watch and wait
+  if (aggressiveness < 0.2) {
+    return {
+      type: 'attack',
+      message: `The ${enemy.name} watches you cautiously.`,
+      damage: 0,
+    };
+  }
+
   // Decide whether to attack or flee
   const healthPercent = enemy.health / enemy.maxHealth;
   const fleeThreshold = template?.fleeThreshold ?? 0.3;
-  const aggressiveness = template?.aggressiveness ?? 0.5;
 
   // Consider fleeing if health is low
   if (healthPercent <= fleeThreshold) {
@@ -219,8 +234,16 @@ function enemyFleeAttempt(encounter: Encounter, player: Actor): EnemyAction {
 
 function enemyChaseDecision(encounter: Encounter, player: Actor): EnemyAction {
   const enemy = encounter.enemy;
-  const template = getEnemyTemplate(enemy);
-  const aggressiveness = template?.aggressiveness ?? 0.5;
+  const aggressiveness = encounter.aggressiveness;
+
+  // Passive creatures (low aggressiveness) let player flee without contention
+  if (aggressiveness < 0.2) {
+    return {
+      type: 'chase',
+      message: `The ${enemy.name} lets you go.`,
+      encounterEnded: true,
+    };
+  }
 
   // More aggressive enemies chase more often
   // Also more likely to chase if player is low HP
@@ -278,13 +301,31 @@ export function processEnemyTurn(
   return getEnemyAction(encounter, player);
 }
 
+export interface PlayerActionInfo {
+  isAttack: boolean;
+  isChase: boolean;
+  isIdle: boolean;
+}
+
+// How much aggressiveness changes per action
+const AGGRESSION_INCREASE_ON_ATTACK = 0.3;
+const AGGRESSION_DECREASE_ON_IDLE = 0.1;
+
 export function handlePlayerActionResult(
   encounter: Encounter,
   result: ActionResult,
-  _player: Actor
+  _player: Actor,
+  actionInfo?: PlayerActionInfo
 ): void {
   if (result.fled === true) {
     encounter.playerFleeing = true;
+  }
+
+  // Adjust aggressiveness based on player action
+  if (actionInfo?.isAttack) {
+    encounter.aggressiveness = Math.min(1, encounter.aggressiveness + AGGRESSION_INCREASE_ON_ATTACK);
+  } else if (actionInfo?.isIdle) {
+    encounter.aggressiveness = Math.max(0, encounter.aggressiveness - AGGRESSION_DECREASE_ON_IDLE);
   }
 
   // Track projectile usage for recovery calculation
@@ -295,6 +336,13 @@ export function handlePlayerActionResult(
     } else if (type === 'rock') {
       encounter.projectilesUsed.rocks[outcome]++;
     }
+  }
+
+  // If enemy is fleeing and player didn't use chase, enemy auto-escapes
+  // (unless the attack was a kill shot)
+  if (encounter.enemyFleeing && !actionInfo?.isChase && !result.encounterEnded) {
+    endEncounter(encounter, 'enemy_escaped');
+    return;
   }
 
   if (result.encounterEnded) {

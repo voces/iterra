@@ -297,6 +297,7 @@ export interface Encounter {
   enemy: Actor;
   playerFleeing: boolean;
   enemyFleeing: boolean;
+  aggressiveness: number; // Dynamic aggressiveness (0-1), increases on attacks, decreases on idle
   ended: boolean;
   result?: 'victory' | 'defeat' | 'player_escaped' | 'enemy_escaped';
   projectilesUsed: ProjectileTracking;
