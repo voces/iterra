@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iterra</title>
+  <script type="module" crossorigin src="/iterra/branches/claude-reduce-location-lookups-NLYIc/assets/index-C6Hbk8kU.js"></script>
+  <link rel="stylesheet" crossorigin href="/iterra/branches/claude-reduce-location-lookups-NLYIc/assets/index-C5c4f9ru.css">
+</head>
+<body>
+  <div id="game-over-panel" class="hidden">
+    <div class="game-over-content">
+      <h2>GAME OVER</h2>
+      <p>You have perished in the wilds of Iterra.</p>
+      <button id="restart-button">Try Again</button>
+    </div>
+  </div>
+
+  <div id="app">
+    <header>
+      <h1>Iterra</h1>
+      <div id="stats-display">
+        <span class="stat vital" title="Health"><span class="stat-icon">♥</span><span id="health-count">0</span>/<span id="max-health">0</span></span>
+        <span class="stat vital" title="Saturation"><span class="stat-icon">◆</span><span id="saturation-count">0</span>/<span id="max-saturation">0</span></span>
+        <span class="stat vital" title="Ticks"><span class="stat-icon">⏱</span><span id="tick-count">0</span></span>
+        <span class="stat secondary" title="Level"><span class="stat-label">Lv</span><span id="level-count">1</span></span>
+        <span class="stat secondary" title="Experience"><span class="stat-label">XP</span><span id="xp-count">0</span>/<span id="xp-next">100</span></span>
+        <span class="stat secondary" title="Weight"><span class="stat-label">Wt</span><span id="weight-count">0</span>/<span id="max-weight">0</span></span>
+        <span class="stat secondary" title="Turn"><span class="stat-label">T</span><span id="turn-count">0</span></span>
+      </div>
+      <div id="game-menu">
+        <button id="menu-button" title="Menu">☰</button>
+        <div id="menu-dropdown" class="hidden">
+          <button id="new-game-button">New Game</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section id="encounter-panel" class="hidden priority-section">
+        <h2>Encounter</h2>
+        <div id="encounter-info">
+          <div class="enemy-info">
+            <span class="enemy-name" id="enemy-name"></span>
+            <span class="enemy-health">HP: <span id="enemy-health">0</span>/<span id="enemy-max-health">0</span></span>
+          </div>
+          <div id="encounter-status"></div>
+        </div>
+      </section>
+
+      <section id="loot-panel" class="hidden priority-section">
+        <h2>Loot</h2>
+        <div id="loot-list"></div>
+        <div id="loot-actions">
+          <button id="take-all-loot">Take All</button>
+          <button id="leave-loot">Leave</button>
+        </div>
+      </section>
+
+      <section id="location-panel">
+        <div id="location-header">
+          <span id="location-icon">📍</span>
+          <span id="location-name">Wilderness</span>
+        </div>
+        <div id="location-details" class="hidden">
+          <div id="exit-status"></div>
+          <div id="discovered-locations"></div>
+        </div>
+      </section>
+
+      <section id="actions-panel">
+        <h2>Actions</h2>
+        <input type="text" id="action-search" placeholder="Search... (press /)" autocomplete="off">
+        <div id="actions-list"></div>
+      </section>
+
+      <section id="log-panel" class="collapsible">
+        <h2 class="section-header" data-section="log">
+          <span class="toggle-icon">▼</span>
+          Log
+        </h2>
+        <div id="game-log" class="section-content"></div>
+      </section>
+
+      <section id="character-stats-panel" class="collapsible collapsed-mobile">
+        <h2 class="section-header" data-section="stats">
+          <span class="toggle-icon">▼</span>
+          Stats <span id="free-points-display"></span>
+        </h2>
+        <div id="character-stats-list" class="section-content"></div>
+      </section>
+
+      <section id="skills-panel" class="collapsible collapsed-mobile">
+        <h2 class="section-header" data-section="skills">
+          <span class="toggle-icon">▼</span>
+          Skills
+        </h2>
+        <div id="skills-list" class="section-content"></div>
+      </section>
+
+      <section id="equipment-panel" class="collapsible collapsed-mobile">
+        <h2 class="section-header" data-section="equipment">
+          <span class="toggle-icon">▼</span>
+          Equipment
+        </h2>
+        <div id="equipment-list" class="section-content"></div>
+      </section>
+
+      <section id="inventory-panel" class="collapsible collapsed-mobile">
+        <h2 class="section-header" data-section="inventory">
+          <span class="toggle-icon">▼</span>
+          Inventory
+        </h2>
+        <div id="inventory-list" class="section-content"></div>
+      </section>
+
+      <section id="structures-panel" class="hidden">
+        <h2>Structures</h2>
+        <div id="structures-list"></div>
+      </section>
+
+      <section id="tracking-panel" class="collapsible collapsed">
+        <h2 class="section-header" data-section="tracking">
+          <span class="toggle-icon">▶</span>
+          Action Tracking
+        </h2>
+        <div id="tracking-content" class="section-content" style="display: none;">
+          <div id="tracking-status">
+            <span id="tracking-indicator" class="tracking-on">Recording</span>
+            <span id="tracking-count">0 actions</span>
+          </div>
+          <div id="tracking-summary"></div>
+          <div id="tracking-actions">
+            <button id="copy-tracking">Copy Data</button>
+            <button id="clear-tracking">Clear</button>
+            <label id="tracking-toggle">
+              <input type="checkbox" id="tracking-enabled" checked>
+              Enable tracking
+            </label>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+</body>
+</html>
