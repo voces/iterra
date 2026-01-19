@@ -127,6 +127,12 @@ export class Game {
     this.state.turn++;
     this.log(result.message);
 
+    // Process node and location drop-off when wandering (before adding new discoveries)
+    if (action.id === 'wander' && !this.state.encounter) {
+      this.processNodeDropOff();
+      this.processLocationDropOff();
+    }
+
     // Handle resource discovery (add new node with distance 0)
     if (result.foundResource) {
       const nodeId = result.foundResource;
@@ -181,12 +187,6 @@ export class Game {
         this.processEnemyTurns();
       }
     } else {
-      // Process node and location drop-off when wandering
-      if (action.id === 'wander') {
-        this.processNodeDropOff();
-        this.processLocationDropOff();
-      }
-
       // Random encounter chance - higher when wandering, small chance on any action
       if (action.id === 'wander' && !result.foundResource && !result.foundLocation && !result.foundExit) {
         this.checkForEncounter(0.25); // 25% when wandering without finding anything
