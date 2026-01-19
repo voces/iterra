@@ -59,6 +59,9 @@ export class UI {
     copyTracking: HTMLElement;
     clearTracking: HTMLElement;
     trackingEnabled: HTMLInputElement;
+    menuButton: HTMLElement;
+    menuDropdown: HTMLElement;
+    newGameButton: HTMLElement;
   };
 
   constructor(game: Game) {
@@ -108,6 +111,9 @@ export class UI {
       copyTracking: document.getElementById('copy-tracking')!,
       clearTracking: document.getElementById('clear-tracking')!,
       trackingEnabled: document.getElementById('tracking-enabled') as HTMLInputElement,
+      menuButton: document.getElementById('menu-button')!,
+      menuDropdown: document.getElementById('menu-dropdown')!,
+      newGameButton: document.getElementById('new-game-button')!,
     };
 
     this.setupEventListeners();
@@ -131,6 +137,27 @@ export class UI {
 
     this.elements.leaveLoot.addEventListener('click', () => {
       this.game.leaveLoot();
+    });
+
+    // Menu button toggle
+    this.elements.menuButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.elements.menuDropdown.classList.toggle('hidden');
+    });
+
+    // Close menu when clicking elsewhere
+    document.addEventListener('click', () => {
+      this.elements.menuDropdown.classList.add('hidden');
+    });
+
+    // New game button with confirmation
+    this.elements.newGameButton.addEventListener('click', () => {
+      if (confirm('Start a new game? All progress will be lost.')) {
+        this.game.restart();
+        this.elements.gameOverPanel.classList.add('hidden');
+        this.elements.menuDropdown.classList.add('hidden');
+        this.render();
+      }
     });
 
     document.addEventListener('keydown', (e) => {

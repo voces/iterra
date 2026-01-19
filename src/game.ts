@@ -1,5 +1,6 @@
 import type { GameState, Action, LogEntry, EquipSlot, StatType, ActionTrackingRecord, ActionStateSnapshot, ActionWithPriority } from './types.ts';
 import { createPlayer } from './player.ts';
+import { saveGame, loadGame, clearSave, saveTrackingRecords, loadTrackingRecords, clearTrackingRecords as clearTrackingStorage } from './persistence.ts';
 import {
   spendTicks,
   addTicks,
@@ -37,7 +38,7 @@ import {
 import { getLocation } from './locations.ts';
 import { createEnterLocationAction } from './actions.ts';
 
-export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end' | 'game-over' | 'level-up' | 'location-discovered' | 'location-entered' | 'location-exited' | 'exit-found';
+export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end' | 'game-over' | 'level-up' | 'location-discovered' | 'location-entered' | 'location-exited' | 'exit-found' | 'save' | 'load';
 
 export type GameEventCallback = (game: Game) => void;
 
@@ -55,6 +56,8 @@ export class Game {
 
   constructor() {
     this.state = this.createInitialState();
+    // Load persisted tracking records
+    this.actionTrackingRecords = loadTrackingRecords();
   }
 
   private createInitialState(): GameState {
@@ -77,8 +80,10 @@ export class Game {
   }
 
   restart(): void {
+    // Clear saved game data when starting fresh
+    clearSave();
     this.state = this.createInitialState();
-    this.actionTrackingRecords = [];
+    // Note: tracking records are NOT cleared on restart - they persist for analysis
     this.log('A new journey begins...');
     this.emit('turn');
   }
@@ -132,6 +137,12 @@ export class Game {
     const result = action.execute(player, context);
     this.state.turn++;
     this.log(result.message);
+
+    // Process node and location drop-off when wandering (before adding new discoveries)
+    if (action.id === 'wander' && !this.state.encounter) {
+      this.processNodeDropOff();
+      this.processLocationDropOff();
+    }
 
     // Handle resource discovery (add new node with distance 0)
     if (result.foundResource) {
@@ -187,12 +198,6 @@ export class Game {
         this.processEnemyTurns();
       }
     } else {
-      // Process node and location drop-off when wandering
-      if (action.id === 'wander') {
-        this.processNodeDropOff();
-        this.processLocationDropOff();
-      }
-
       // Random encounter chance - higher when wandering, small chance on any action
       if (action.id === 'wander' && !result.foundResource && !result.foundLocation && !result.foundExit) {
         this.checkForEncounter(0.25); // 25% when wandering without finding anything
@@ -325,6 +330,9 @@ export class Game {
     // Chance to deplete the node
     if (Math.random() < nodeDef.depletionChance) {
       this.state.availableNodes.splice(nodeIndex, 1);
+    } else {
+      // Reset distance to 0 since we walked to the node to gather
+      this.state.availableNodes[nodeIndex].distance = 0;
     }
   }
 
@@ -756,6 +764,38 @@ export class Game {
 
   private emit(event: GameEventType): void {
     this.listeners.get(event)?.forEach((cb) => cb(this));
+
+    // Auto-save after turn events (state changes)
+    if (event === 'turn') {
+      this.autoSave();
+    }
+  }
+
+  private autoSave(): void {
+    saveGame(this.state);
+    this.emit('save');
+  }
+
+  /**
+   * Try to load game from saved state
+   * Returns true if a save was loaded, false if no save exists
+   */
+  loadFromSave(): boolean {
+    const savedState = loadGame();
+    if (savedState) {
+      this.state = savedState;
+      this.emit('load');
+      this.emit('turn'); // Trigger UI update
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Clear saved game data
+   */
+  clearSaveData(): void {
+    clearSave();
   }
 
   getAvailableActions(): Action[] {
@@ -1167,6 +1207,9 @@ export class Game {
     };
 
     this.actionTrackingRecords.push(record);
+
+    // Persist to localStorage (auto-trims to max size)
+    saveTrackingRecords(this.actionTrackingRecords);
   }
 
   // Get all tracking records
@@ -1177,6 +1220,7 @@ export class Game {
   // Clear tracking records
   clearTrackingRecords(): void {
     this.actionTrackingRecords = [];
+    clearTrackingStorage();
   }
 
   // Enable/disable tracking
