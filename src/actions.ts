@@ -1309,7 +1309,7 @@ export function createEnterLocationAction(locationId: string, locationName: stri
 
 // === Action Collections ===
 
-export const combatActions: Action[] = [attack, throwRock, flee, chase];
+export const combatActions: Action[] = [throwRock, flee, chase];
 export const gatheringActions: Action[] = [gatherBerries, gatherSticks, gatherRocks, gatherFiber];
 export const craftingActions: Action[] = [
   craftCampfire,
