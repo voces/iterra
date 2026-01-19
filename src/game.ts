@@ -425,12 +425,20 @@ export class Game {
     const corpse = this.state.pendingCorpse;
     if (!corpse) return;
 
-    // 25% base chance to lose track of the corpse
-    const dropOffChance = 0.25;
+    // Carried corpses don't drop off
+    if (corpse.carried) return;
+
+    // Drop-off chance increases with distance (like resource nodes)
+    const baseDropOffChance = 0.25;
+    const distanceMultiplier = 1 + corpse.distance * 0.1; // 10% more per distance
+    const dropOffChance = Math.min(0.5, baseDropOffChance * distanceMultiplier);
 
     if (Math.random() < dropOffChance) {
       this.state.pendingCorpse = null;
       this.log(`You wander away from the ${corpse.enemyName}'s corpse.`);
+    } else {
+      // Increase distance for corpses that survive
+      corpse.distance++;
     }
   }
 
@@ -579,6 +587,8 @@ export class Game {
         enemyName: enemy.name,
         butchered: false,
         skinned: false,
+        distance: 0,
+        carried: false,
       };
 
       const actions: string[] = [];

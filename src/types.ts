@@ -309,6 +309,8 @@ export interface PendingCorpse {
   enemyName: string; // Display name
   butchered: boolean; // Whether meat has been extracted
   skinned: boolean; // Whether hide has been extracted
+  distance: number; // How far away the corpse is (increases when wandering)
+  carried: boolean; // Whether the player is carrying the corpse
 }
 
 export interface GameState {

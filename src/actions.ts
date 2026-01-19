@@ -734,6 +734,55 @@ export const skin: Action = {
   },
 };
 
+export const pickupCorpse: Action = {
+  id: 'pickup-corpse',
+  name: 'Pick Up Corpse',
+  description: 'Carry the corpse with you. Heavy but prevents losing it.',
+  tickCost: 100,
+  tags: ['harvesting', 'non-combat'],
+  execute: (_actor: Actor, context?: ActionContext) => {
+    const corpse = context?.game?.pendingCorpse;
+    if (!corpse) {
+      return { success: false, message: 'No corpse to pick up.' };
+    }
+
+    if (corpse.carried) {
+      return { success: false, message: 'You are already carrying the corpse.' };
+    }
+
+    corpse.carried = true;
+    corpse.distance = 0; // Reset distance when picked up
+    return {
+      success: true,
+      message: `You hoist the ${corpse.enemyName}'s corpse onto your shoulders. It's heavy!`,
+    };
+  },
+};
+
+export const dropCorpse: Action = {
+  id: 'drop-corpse',
+  name: 'Drop Corpse',
+  description: 'Put down the corpse you are carrying.',
+  tickCost: 25,
+  tags: ['harvesting', 'non-combat'],
+  execute: (_actor: Actor, context?: ActionContext) => {
+    const corpse = context?.game?.pendingCorpse;
+    if (!corpse) {
+      return { success: false, message: 'No corpse to drop.' };
+    }
+
+    if (!corpse.carried) {
+      return { success: false, message: 'You are not carrying a corpse.' };
+    }
+
+    corpse.carried = false;
+    return {
+      success: true,
+      message: `You set down the ${corpse.enemyName}'s corpse.`,
+    };
+  },
+};
+
 // === Consumption Actions ===
 
 function createEatAction(itemId: string, actionId: string, name: string, tickCost: number): Action {
@@ -1048,7 +1097,11 @@ export const flee: Action = {
     }
 
     const enemy = context.encounter.enemy;
-    const playerSpeed = getEffectiveSpeed(actor);
+    let playerSpeed = getEffectiveSpeed(actor);
+    // Carrying a corpse slows you down significantly
+    if (context?.game?.pendingCorpse?.carried) {
+      playerSpeed *= 0.5;
+    }
     const enemySpeed = getEffectiveSpeed(enemy);
     const speedRatio = playerSpeed / enemySpeed;
     const baseChance = 0.4;
@@ -1062,9 +1115,12 @@ export const flee: Action = {
       };
     }
 
+    const corpseMsg = context?.game?.pendingCorpse?.carried
+      ? ' The corpse weighs you down!'
+      : '';
     return {
       success: true,
-      message: `You try to flee but the ${enemy.name} blocks your escape!`,
+      message: `You try to flee but the ${enemy.name} blocks your escape!${corpseMsg}`,
       fled: false,
     };
   },
@@ -1086,7 +1142,11 @@ export const chase: Action = {
     }
 
     const enemy = context.encounter.enemy;
-    const playerSpeed = getEffectiveSpeed(actor);
+    let playerSpeed = getEffectiveSpeed(actor);
+    // Carrying a corpse slows you down significantly
+    if (context?.game?.pendingCorpse?.carried) {
+      playerSpeed *= 0.5;
+    }
     const enemySpeed = getEffectiveSpeed(enemy);
     const speedRatio = playerSpeed / enemySpeed;
     const baseChance = 0.5;
@@ -1100,9 +1160,12 @@ export const chase: Action = {
       };
     }
 
+    const corpseMsg = context?.game?.pendingCorpse?.carried
+      ? ' The corpse weighs you down!'
+      : '';
     return {
       success: true,
-      message: `The ${enemy.name} escapes into the distance.`,
+      message: `The ${enemy.name} escapes into the distance.${corpseMsg}`,
       encounterEnded: true,
     };
   },
@@ -1199,7 +1262,7 @@ export const craftingActions: Action[] = [
   craftLeatherBoots,
 ];
 export const consumptionActions: Action[] = [eatBerries, eatCookedMeat, eatRawMeat];
-export const harvestingActions: Action[] = [butcher, skin];
+export const harvestingActions: Action[] = [butcher, skin, pickupCorpse, dropCorpse];
 export const locationActions: Action[] = [exitLocation];
 
 export const initialPlayerActions: Action[] = [
