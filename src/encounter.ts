@@ -82,16 +82,6 @@ export function getEnemyAction(
     return enemyFleeAttempt(encounter, player);
   }
 
-  // Passive creatures (low aggressiveness) don't attack unprovoked
-  // They just watch and wait
-  if (aggressiveness < 0.2) {
-    return {
-      type: 'attack',
-      message: `The ${enemy.name} watches you cautiously.`,
-      damage: 0,
-    };
-  }
-
   // Decide whether to attack or flee
   const healthPercent = enemy.health / enemy.maxHealth;
   const fleeThreshold = template?.fleeThreshold ?? 0.3;
@@ -106,6 +96,16 @@ export function getEnemyAction(
     if (Math.random() < fleeChance) {
       return enemyStartFlee(encounter);
     }
+  }
+
+  // Passive creatures (low aggressiveness) don't attack unprovoked
+  // They just watch and wait
+  if (aggressiveness < 0.2) {
+    return {
+      type: 'attack',
+      message: `The ${enemy.name} watches you cautiously.`,
+      damage: 0,
+    };
   }
 
   // Default: attack
