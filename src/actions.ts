@@ -734,26 +734,6 @@ export const skin: Action = {
   },
 };
 
-export const leaveCorpse: Action = {
-  id: 'leave-corpse',
-  name: 'Leave Corpse',
-  description: 'Leave the corpse behind without harvesting.',
-  tickCost: 25,
-  tags: ['harvesting', 'non-combat'],
-  execute: (_actor: Actor, context?: ActionContext) => {
-    const corpse = context?.game?.pendingCorpse;
-    if (!corpse) {
-      return { success: false, message: 'No corpse to leave.' };
-    }
-
-    // Clear the corpse (will be done in game.ts after action)
-    return {
-      success: true,
-      message: `You leave the ${corpse.enemyName}'s corpse behind.`,
-    };
-  },
-};
-
 // === Consumption Actions ===
 
 function createEatAction(itemId: string, actionId: string, name: string, tickCost: number): Action {
@@ -1219,7 +1199,7 @@ export const craftingActions: Action[] = [
   craftLeatherBoots,
 ];
 export const consumptionActions: Action[] = [eatBerries, eatCookedMeat, eatRawMeat];
-export const harvestingActions: Action[] = [butcher, skin, leaveCorpse];
+export const harvestingActions: Action[] = [butcher, skin];
 export const locationActions: Action[] = [exitLocation];
 
 export const initialPlayerActions: Action[] = [

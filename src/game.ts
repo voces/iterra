@@ -143,10 +143,11 @@ export class Game {
     this.state.turn++;
     this.log(result.message);
 
-    // Process node and location drop-off when wandering (before adding new discoveries)
+    // Process node, location, and corpse drop-off when wandering (before adding new discoveries)
     if (action.id === 'wander' && !this.state.encounter) {
       this.processNodeDropOff();
       this.processLocationDropOff();
+      this.processCorpseDropOff();
     }
 
     // Handle resource discovery (add new node with distance 0)
@@ -183,7 +184,7 @@ export class Game {
 
     // Handle corpse cleanup after harvesting
     if (action.tags.includes('harvesting')) {
-      this.processCorpseCleanup(action.id);
+      this.processCorpseCleanup();
     }
 
     // Handle encounter-specific results
@@ -419,15 +420,23 @@ export class Game {
     }
   }
 
-  private processCorpseCleanup(actionId: string): void {
+  private processCorpseDropOff(): void {
+    // Corpse has a chance to be lost when wandering
     const corpse = this.state.pendingCorpse;
     if (!corpse) return;
 
-    // If leave-corpse was used, always clear
-    if (actionId === 'leave-corpse') {
+    // 25% base chance to lose track of the corpse
+    const dropOffChance = 0.25;
+
+    if (Math.random() < dropOffChance) {
       this.state.pendingCorpse = null;
-      return;
+      this.log(`You wander away from the ${corpse.enemyName}'s corpse.`);
     }
+  }
+
+  private processCorpseCleanup(): void {
+    const corpse = this.state.pendingCorpse;
+    if (!corpse) return;
 
     // Check if corpse is fully harvested
     const canBeButchered = canButcher(corpse.enemyId);
@@ -1036,11 +1045,7 @@ export class Game {
 
     // Harvesting actions when corpse available - high priority
     if (action.tags.includes('harvesting')) {
-      if (action.id === 'butcher' || action.id === 'skin') {
-        score += 90; // High priority to harvest before corpse decays
-      } else if (action.id === 'leave-corpse') {
-        score += 20; // Lower priority than actually harvesting
-      }
+      score += 90; // High priority to harvest before corpse decays
     }
 
     // Crafting priorities based on progression
