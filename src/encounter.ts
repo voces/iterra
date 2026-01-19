@@ -26,8 +26,12 @@ function rollEnemyDamage(enemy: Actor): number {
   return minDamage + statBonus + Math.floor(Math.random() * (maxDamage - minDamage + 1));
 }
 
-export function createEncounter(enemy?: Actor, playerLevel: number = 1): Encounter {
-  const actualEnemy = enemy ?? getRandomEnemy(playerLevel);
+export function createEncounter(
+  enemy?: Actor,
+  playerLevel: number = 1,
+  locationId: string | null = null
+): Encounter {
+  const actualEnemy = enemy ?? getRandomEnemy(playerLevel, locationId);
   const template = getEnemyTemplate(actualEnemy);
   const baseAggressiveness = template?.aggressiveness ?? 0.5;
 
