@@ -1082,8 +1082,7 @@ header {
 
 /* Expandable Item System */
 .inventory-item,
-.equipment-slot,
-.back-slot-item {
+.equipment-slot {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1097,8 +1096,7 @@ header {
 }
 
 .inventory-item .item-header,
-.equipment-slot .slot-header,
-.back-slot-item .slot-header {
+.equipment-slot .slot-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1112,8 +1110,7 @@ header {
 }
 
 .inventory-item.selected,
-.equipment-slot.selected,
-.back-slot-item.selected {
+.equipment-slot.selected {
   background: var(--bg-primary);
   border-color: var(--accent);
   border-radius: 4px;
@@ -1179,45 +1176,10 @@ header {
   color: var(--bg-primary);
 }
 
-/* Back Slots Section */
-.back-slots-section {
-  margin-top: 0.75rem;
-  padding-top: 0.5rem;
-  border-top: 1px dashed var(--border);
-}
-
-.back-slots-header {
-  font-size: 0.8rem;
-  color: var(--warning);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.35rem;
-}
-
-.back-slots-empty {
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-style: italic;
-  padding: 0.25rem 0;
-}
-
-.back-slot-item {
-  padding: 0.25rem 0.4rem;
-  background: var(--bg-tertiary);
-  border-radius: 4px;
-  margin-bottom: 0.25rem;
-  border: 1px solid transparent;
-}
-
+/* Back Slots - now using equipment-slot styling, only keep equipped badge */
 .back-slot-item.equipped {
   border-color: var(--success);
   background: rgba(74, 222, 128, 0.1);
-}
-
-.back-slot-weapon {
-  color: var(--text-primary);
-  font-size: 0.85rem;
 }
 
 .equipped-badge {
