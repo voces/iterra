@@ -309,8 +309,10 @@ export function equipItem(actor: Actor, itemId: string, slot: EquipSlot): boolea
   const item = getItem(itemId);
   if (!item || !item.equipSlot) return false;
 
-  // Check if we have the item in inventory
-  if (getItemCount(actor, itemId) <= 0) return false;
+  // Check if we have the item in inventory or back slots
+  const hasInInventory = getItemCount(actor, itemId) > 0;
+  const inBackSlots = actor.backSlots.some(s => s.itemId === itemId);
+  if (!hasInInventory && !inBackSlots) return false;
 
   // Handle two-handed weapons
   if (item.twoHanded) {
@@ -325,8 +327,12 @@ export function equipItem(actor: Actor, itemId: string, slot: EquipSlot): boolea
     actor.equipment[slot] = itemId;
   }
 
-  // Remove from inventory (equipped items don't count as inventory)
-  removeItem(actor, itemId, 1);
+  // Remove from inventory or back slots
+  if (hasInInventory) {
+    removeItem(actor, itemId, 1);
+  } else if (inBackSlots) {
+    removeFromBackSlots(actor, itemId);
+  }
   return true;
 }
 
@@ -633,14 +639,28 @@ export function getBackSlotWeapons(actor: Actor): string[] {
   return actor.backSlots.map(slot => slot.itemId);
 }
 
-// Add a weapon to back slots
+// Add a weapon to back slots (moves from hands or inventory)
 export function addToBackSlots(actor: Actor, itemId: string): boolean {
   if (!canAddToBackSlots(actor, itemId)) return false;
 
   // Check if player has the weapon in inventory or equipped
   const hasInInventory = getItemCount(actor, itemId) > 0;
-  const hasEquipped = actor.equipment.mainHand === itemId;
-  if (!hasInInventory && !hasEquipped) return false;
+  const hasEquippedMainHand = actor.equipment.mainHand === itemId;
+  if (!hasInInventory && !hasEquippedMainHand) return false;
+
+  // If equipped in hands, unequip first (move to back, not inventory)
+  if (hasEquippedMainHand) {
+    const item = getItem(itemId);
+    if (item?.twoHanded) {
+      delete actor.equipment.mainHand;
+      delete actor.equipment.offHand;
+    } else {
+      delete actor.equipment.mainHand;
+    }
+  } else if (hasInInventory) {
+    // Remove from inventory
+    removeItem(actor, itemId, 1);
+  }
 
   actor.backSlots.push({ itemId });
   return true;
@@ -689,16 +709,3 @@ export function switchToBackSlotWeapon(actor: Actor, itemId: string): string | n
   return currentWeapon ?? null;
 }
 
-// Ensure back slots are synced when entering combat
-// Adds currently equipped weapon to back slots if not already there
-export function ensureBackSlotsHasEquipped(actor: Actor): void {
-  const equipped = actor.equipment.mainHand;
-
-  // If we have a weapon equipped that's not in back slots and can be added, add it
-  if (equipped && isWeapon(equipped)) {
-    const inBackSlots = actor.backSlots.some(slot => slot.itemId === equipped);
-    if (!inBackSlots && canAddToBackSlots(actor, equipped)) {
-      actor.backSlots.push({ itemId: equipped });
-    }
-  }
-}

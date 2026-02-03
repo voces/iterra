@@ -41,7 +41,6 @@ import {
   createWeaponAttackAction,
 } from './actions.ts';
 import {
-  ensureBackSlotsHasEquipped,
   getBackSlotWeapons,
   addToBackSlots,
   removeFromBackSlots,
@@ -469,9 +468,6 @@ export class Game {
     const locationId = this.state.currentLocation;
     const encounter = createEncounter(enemy, playerLevel, locationId);
     this.state.encounter = encounter;
-
-    // Ensure back slots include currently equipped weapon (for quick switching)
-    ensureBackSlotsHasEquipped(this.state.player);
 
     const enemyLevel = encounter.enemy.levelInfo.level;
     const levelDisplay = enemyLevel > 1 ? ` (Lv.${enemyLevel})` : '';

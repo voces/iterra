@@ -1176,20 +1176,7 @@ header {
   color: var(--bg-primary);
 }
 
-/* Back Slots - now using equipment-slot styling, only keep equipped badge */
-.back-slot-item.equipped {
-  border-color: var(--success);
-  background: rgba(74, 222, 128, 0.1);
-}
-
-.equipped-badge {
-  font-size: 0.7rem;
-  color: var(--success);
-  background: rgba(74, 222, 128, 0.2);
-  padding: 0.1rem 0.3rem;
-  border-radius: 3px;
-  margin-left: auto;
-}
+/* Back slots now use standard equipment-slot styling */
 
 /* Fix inventory layout for expanded items */
 #inventory-list {

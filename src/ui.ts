@@ -501,14 +501,13 @@ export class UI {
       const weapon = weaponId ? getItem(weaponId) : null;
       const weaponName = weapon?.name ?? 'Empty';
       const handLabel = weaponId ? (isTwoHanded(weaponId) ? '2H' : '1H') : '';
-      const isEquipped = weaponId && weaponId === equipment.mainHand;
       const isSelected = this.selectedBackSlot === i;
       const selectedClass = isSelected ? 'selected' : '';
-      const equippedClass = isEquipped ? 'equipped' : '';
 
       let actionsHtml = '';
-      if (isSelected && weaponId && !inCombat && !isEquipped) {
+      if (isSelected && weaponId && !inCombat) {
         const actions: string[] = [];
+        actions.push(`<button class="item-action-btn equip-from-back-btn" data-item-id="${weaponId}">Equip to Hands</button>`);
         actions.push(`<button class="item-action-btn remove-back-slot-btn" data-item-id="${weaponId}">Remove from Back</button>`);
         actionsHtml = `<div class="item-expanded-actions">${actions.join('')}</div>`;
       }
@@ -516,11 +515,10 @@ export class UI {
       const displayName = weaponId ? `${weaponName} (${handLabel})` : 'Empty';
 
       html += `
-        <div class="equipment-slot back-slot-item ${selectedClass} ${equippedClass}" data-back-index="${i}">
+        <div class="equipment-slot back-slot-item ${selectedClass}" data-back-index="${i}">
           <div class="slot-header">
             <span class="slot-label">${backSlotLabels[i]}:</span>
             <span class="slot-item">${displayName}</span>
-            ${isEquipped ? '<span class="equipped-badge">Equipped</span>' : ''}
           </div>
           ${actionsHtml}
         </div>
@@ -590,8 +588,7 @@ export class UI {
           e.stopPropagation();
           const index = parseInt(el.getAttribute('data-back-index') ?? '-1', 10);
           const weaponId = backSlotWeapons[index];
-          const isEquipped = weaponId === equipment.mainHand;
-          if (index >= 0 && !inCombat && !isEquipped) {
+          if (index >= 0 && weaponId && !inCombat) {
             this.selectedBackSlot = this.selectedBackSlot === index ? null : index;
             this.selectedEquipSlot = null;
             this.selectedInventoryItem = null;
@@ -621,6 +618,17 @@ export class UI {
         if (itemId) {
           this.game.addToBackSlots(itemId);
           this.selectedEquipSlot = null;
+        }
+      });
+    });
+
+    this.elements.equipmentList.querySelectorAll('.equip-from-back-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
+        if (itemId) {
+          this.game.equip(itemId, 'mainHand');
+          this.selectedBackSlot = null;
         }
       });
     });
