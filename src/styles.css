@@ -1079,3 +1079,106 @@ section h2 {
 header {
   position: relative;
 }
+
+/* Expandable Item System */
+.inventory-item,
+.equipment-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.inventory-item {
+  width: auto;
+  min-width: fit-content;
+}
+
+.inventory-item .item-header,
+.equipment-slot .slot-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  width: 100%;
+}
+
+.inventory-item .item-header {
+  justify-content: space-between;
+  min-width: 100%;
+}
+
+.inventory-item.selected,
+.equipment-slot.selected {
+  background: var(--bg-primary);
+  border-color: var(--accent);
+  border-radius: 4px;
+  padding: 0.35rem;
+  width: 100%;
+}
+
+.inventory-item.selected {
+  width: 100%;
+  flex: 1 1 100%;
+}
+
+.item-expanded-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+  margin-top: 0.25rem;
+  width: 100%;
+}
+
+.item-action-btn {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.item-action-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.item-action-btn.equip-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.item-action-btn.back-slot-btn:hover,
+.item-action-btn.equip-back-slot-btn:hover {
+  background: var(--warning);
+  border-color: var(--warning);
+  color: var(--bg-primary);
+}
+
+.item-action-btn.drop-btn:hover,
+.item-action-btn.drop-all-btn:hover,
+.item-action-btn.remove-back-slot-btn:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.item-action-btn.unequip-btn:hover {
+  background: var(--warning);
+  border-color: var(--warning);
+  color: var(--bg-primary);
+}
+
+/* Back slots now use standard equipment-slot styling */
+
+/* Fix inventory layout for expanded items */
+#inventory-list {
+  flex-wrap: wrap;
+}

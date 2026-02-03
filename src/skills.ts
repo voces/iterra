@@ -226,6 +226,7 @@ export function getWeaponSkill(weaponId: string | undefined): SkillType {
 
   // Map weapon IDs to skill types
   const weaponSkillMap: Record<string, SkillType> = {
+    sticks: 'unarmed', // Sticks use unarmed skill (improvised weapon)
     stoneKnife: 'knife',
     ironKnife: 'knife',
     steelKnife: 'knife',
@@ -238,4 +239,22 @@ export function getWeaponSkill(weaponId: string | undefined): SkillType {
   };
 
   return weaponSkillMap[weaponId] || 'unarmed';
+}
+
+// Get display name for a weapon's attack action
+export function getWeaponAttackName(weaponId: string | undefined): string {
+  if (!weaponId) return 'Punch';
+
+  const attackNames: Record<string, string> = {
+    sticks: 'Bash',
+    stoneKnife: 'Slash',
+    ironKnife: 'Slash',
+    steelKnife: 'Slash',
+    stoneSpear: 'Thrust',
+    ironSpear: 'Thrust',
+    steelSpear: 'Thrust',
+    bow: 'Shoot', // Note: bow uses ranged-attack action, not melee
+  };
+
+  return attackNames[weaponId] || 'Strike';
 }

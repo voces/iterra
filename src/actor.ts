@@ -1,4 +1,5 @@
-import type { Actor, Action, Inventory, Equipment, EquipSlot, Stats, Skills, EquipmentInstances, MaterialQualities } from './types.ts';
+import type { Actor, Action, Inventory, Equipment, EquipSlot, Stats, Skills, EquipmentInstances, MaterialQualities, WeaponBackSlots } from './types.ts';
+import { MAX_TWO_HANDED_BACK } from './types.ts';
 import {
   createLevelInfo,
   getMaxHealthBonus,
@@ -26,6 +27,7 @@ export function createActor(
     level?: number;
     stats?: Partial<Stats>;
     skills?: Skills;
+    backSlots?: WeaponBackSlots;
   } = {}
 ): Actor {
   const {
@@ -44,6 +46,7 @@ export function createActor(
     level = 1,
     stats,
     skills,
+    backSlots = [null, null, null],  // Fixed 3 back slots, all empty
   } = options;
 
   const levelInfo = createLevelInfo(level, stats);
@@ -71,6 +74,7 @@ export function createActor(
     actions: [...actions],
     levelInfo,
     skills: skills ?? createEmptySkills(),
+    backSlots: [...backSlots],
   };
 }
 
@@ -305,8 +309,10 @@ export function equipItem(actor: Actor, itemId: string, slot: EquipSlot): boolea
   const item = getItem(itemId);
   if (!item || !item.equipSlot) return false;
 
-  // Check if we have the item in inventory
-  if (getItemCount(actor, itemId) <= 0) return false;
+  // Check if we have the item in inventory or back slots
+  const hasInInventory = getItemCount(actor, itemId) > 0;
+  const inBackSlots = actor.backSlots.includes(itemId);
+  if (!hasInInventory && !inBackSlots) return false;
 
   // Handle two-handed weapons
   if (item.twoHanded) {
@@ -321,8 +327,12 @@ export function equipItem(actor: Actor, itemId: string, slot: EquipSlot): boolea
     actor.equipment[slot] = itemId;
   }
 
-  // Remove from inventory (equipped items don't count as inventory)
-  removeItem(actor, itemId, 1);
+  // Remove from inventory or back slots
+  if (hasInInventory) {
+    removeItem(actor, itemId, 1);
+  } else if (inBackSlots) {
+    removeFromBackSlots(actor, itemId);
+  }
   return true;
 }
 
@@ -568,3 +578,148 @@ export function getShieldArmor(actor: Actor): number {
   }
   return 0;
 }
+
+// === Weapon Back Slots System ===
+// Allows carrying backup weapons on your back for quick switching in combat
+// 3 slots total: max 2 two-handed weapons, max 1 one-handed weapon
+
+// Check if an item is a weapon that can be added to back slots
+export function isWeapon(itemId: string): boolean {
+  const item = getItem(itemId);
+  if (!item) return false;
+  // Item must have an equipSlot of mainHand and have damage properties
+  return item.equipSlot === 'mainHand' && (item.minDamage !== undefined || item.maxDamage !== undefined);
+}
+
+// Check if a weapon is two-handed
+export function isTwoHanded(itemId: string): boolean {
+  const item = getItem(itemId);
+  return item?.twoHanded === true;
+}
+
+// Count weapons by type in back slots
+export function countBackSlotWeapons(actor: Actor): { twoHanded: number; oneHanded: number } {
+  let twoHanded = 0;
+  let oneHanded = 0;
+
+  for (const weaponId of actor.backSlots) {
+    if (weaponId !== null) {
+      if (isTwoHanded(weaponId)) {
+        twoHanded++;
+      } else {
+        oneHanded++;
+      }
+    }
+  }
+
+  return { twoHanded, oneHanded };
+}
+
+// Check if a weapon can be added to back slots (respects type limits)
+// Back can hold 3 weapons total, with at most 2 being two-handed
+export function canAddToBackSlots(actor: Actor, itemId: string): boolean {
+  if (!isWeapon(itemId)) return false;
+
+  // Check if there's an empty slot
+  const hasEmptySlot = actor.backSlots.some(slot => slot === null);
+  if (!hasEmptySlot) return false;
+
+  // Check if weapon is already in back slots
+  if (actor.backSlots.includes(itemId)) return false;
+
+  // Check two-handed limit (max 2 two-handed weapons on back)
+  if (isTwoHanded(itemId)) {
+    const counts = countBackSlotWeapons(actor);
+    if (counts.twoHanded >= MAX_TWO_HANDED_BACK) return false;
+  }
+  // No limit on one-handed weapons (beyond the 3 total slot limit)
+
+  return true;
+}
+
+// Get all weapons in back slots (returns fixed array with nulls for empty slots)
+export function getBackSlotWeapons(actor: Actor): (string | null)[] {
+  return actor.backSlots;
+}
+
+// Add a weapon to back slots (moves from hands or inventory)
+// Optionally specify a slot index to add to a specific slot
+export function addToBackSlots(actor: Actor, itemId: string, slotIndex?: number): boolean {
+  if (!canAddToBackSlots(actor, itemId)) return false;
+
+  // Check if player has the weapon in inventory or equipped
+  const hasInInventory = getItemCount(actor, itemId) > 0;
+  const hasEquippedMainHand = actor.equipment.mainHand === itemId;
+  if (!hasInInventory && !hasEquippedMainHand) return false;
+
+  // Find slot to use
+  let targetSlot: number;
+  if (slotIndex !== undefined && actor.backSlots[slotIndex] === null) {
+    targetSlot = slotIndex;
+  } else {
+    // Find first empty slot
+    targetSlot = actor.backSlots.findIndex(slot => slot === null);
+    if (targetSlot === -1) return false;
+  }
+
+  // If equipped in hands, unequip first (move to back, not inventory)
+  if (hasEquippedMainHand) {
+    const item = getItem(itemId);
+    if (item?.twoHanded) {
+      delete actor.equipment.mainHand;
+      delete actor.equipment.offHand;
+    } else {
+      delete actor.equipment.mainHand;
+    }
+  } else if (hasInInventory) {
+    // Remove from inventory
+    removeItem(actor, itemId, 1);
+  }
+
+  actor.backSlots[targetSlot] = itemId;
+  return true;
+}
+
+// Remove a weapon from back slots (returns to inventory)
+export function removeFromBackSlots(actor: Actor, itemId: string): boolean {
+  const idx = actor.backSlots.findIndex(slot => slot === itemId);
+  if (idx === -1) return false;
+
+  actor.backSlots[idx] = null;
+  addItem(actor, itemId, 1);  // Return to inventory
+  return true;
+}
+
+// Switch to a weapon from back slots (swaps with currently equipped)
+// Returns the previously equipped weapon (if any) that goes to back slots
+export function switchToBackSlotWeapon(actor: Actor, itemId: string): string | null {
+  // Check if weapon is in back slots
+  const idx = actor.backSlots.findIndex(slot => slot === itemId);
+  if (idx === -1) return null;
+
+  const currentWeapon = actor.equipment.mainHand;
+
+  // Clear the back slot (weapon is being drawn)
+  actor.backSlots[idx] = null;
+
+  // If we have a weapon equipped, put it in the same slot we just vacated
+  if (currentWeapon && isWeapon(currentWeapon)) {
+    actor.backSlots[idx] = currentWeapon;
+  }
+
+  // Equip the new weapon
+  const newWeaponItem = getItem(itemId);
+  if (newWeaponItem?.twoHanded) {
+    actor.equipment.mainHand = itemId;
+    actor.equipment.offHand = itemId;
+  } else {
+    actor.equipment.mainHand = itemId;
+    // Keep offHand as is (shield, etc.) unless it was part of a two-handed weapon
+    if (actor.equipment.offHand === currentWeapon) {
+      delete actor.equipment.offHand;
+    }
+  }
+
+  return currentWeapon ?? null;
+}
+
