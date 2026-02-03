@@ -136,7 +136,20 @@ function deserializeActor(data: SerializedActor, isPlayer: boolean): Actor {
   const levelInfo = ensureValidLevelInfo(data.levelInfo);
 
   // Ensure back slots have proper structure (handle old saves)
-  const backSlots = data.backSlots ? [...data.backSlots] : [];
+  // Convert old format (array of {itemId}) or new format to fixed tuple
+  const backSlots: [string | null, string | null, string | null] = [null, null, null];
+  if (data.backSlots) {
+    for (let i = 0; i < 3 && i < data.backSlots.length; i++) {
+      const slot = data.backSlots[i];
+      if (typeof slot === 'string') {
+        // New format: string or null directly
+        backSlots[i] = slot;
+      } else if (slot && typeof slot === 'object' && 'itemId' in slot) {
+        // Old format: {itemId: string}
+        backSlots[i] = (slot as { itemId: string }).itemId;
+      }
+    }
+  }
 
   const actor: Actor = {
     id: data.id,

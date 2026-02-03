@@ -778,10 +778,11 @@ export class Game {
 
     if (!canAddToBackSlots(player, itemId)) {
       const item = getItem(itemId);
-      const alreadyOnBack = player.backSlots.some(slot => slot.itemId === itemId);
+      const alreadyOnBack = player.backSlots.includes(itemId);
+      const slotsUsed = player.backSlots.filter(s => s !== null).length;
       if (alreadyOnBack) {
         this.log('That weapon is already on your back.');
-      } else if (player.backSlots.length >= 3) {
+      } else if (slotsUsed >= 3) {
         this.log('Back slots are full (max 3 weapons).');
       } else if (item?.twoHanded) {
         this.log('Cannot add more two-handed weapons (max 2).');
@@ -821,10 +822,10 @@ export class Game {
     return false;
   }
 
-  getBackSlotsInfo(): { weapons: string[]; equipped: string | undefined } {
+  getBackSlotsInfo(): { weapons: (string | null)[]; equipped: string | undefined } {
     const player = this.state.player;
     return {
-      weapons: player.backSlots.map(slot => slot.itemId),
+      weapons: player.backSlots,
       equipped: player.equipment.mainHand,
     };
   }
@@ -914,7 +915,7 @@ export class Game {
       // Add attack actions for weapons in back slots (with penalty)
       const backSlotWeapons = getBackSlotWeapons(player);
       for (const weaponId of backSlotWeapons) {
-        if (weaponId !== equippedWeapon) {
+        if (weaponId !== null && weaponId !== equippedWeapon) {
           actions.push(createWeaponAttackAction(weaponId, true));
         }
       }

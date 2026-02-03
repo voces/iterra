@@ -194,16 +194,12 @@ export type Equipment = Partial<Record<EquipSlot, string>>; // slot -> itemId
 // Weapon back slots - carry backup weapons for quick switching in combat
 // 3 back slots total with constraints:
 // - Max 2 two-handed weapons
-// - Max 1 one-handed weapon
+// - No limit on one-handed weapons
 export const MAX_BACK_SLOTS = 3;
 export const MAX_TWO_HANDED_BACK = 2;
-// No limit on one-handed weapons in back slots
 
-export interface WeaponBackSlot {
-  itemId: string; // The weapon item ID
-}
-
-export type WeaponBackSlots = WeaponBackSlot[]; // Max 3 weapons with type constraints
+// Fixed-size array of 3 back slots, each can be a weapon ID or null (empty)
+export type WeaponBackSlots = [string | null, string | null, string | null];
 
 // Equipment with item instances (quality variation)
 export type EquipmentInstances = Partial<Record<EquipSlot, ItemInstance>>;
