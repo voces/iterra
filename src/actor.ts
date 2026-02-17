@@ -669,8 +669,10 @@ export function addToBackSlots(actor: Actor, itemId: string, slotIndex?: number)
     if (targetSlot === -1) return false;
   }
 
-  // If equipped in hands, unequip first (move to back, not inventory)
-  if (hasEquippedMainHand) {
+  // Prioritize taking from inventory over unequipping from hands
+  if (hasInInventory) {
+    removeItem(actor, itemId, 1);
+  } else if (hasEquippedMainHand) {
     const item = getItem(itemId);
     if (item?.twoHanded) {
       delete actor.equipment.mainHand;
@@ -680,9 +682,6 @@ export function addToBackSlots(actor: Actor, itemId: string, slotIndex?: number)
     }
   } else if (hasEquippedOffHand) {
     delete actor.equipment.offHand;
-  } else if (hasInInventory) {
-    // Remove from inventory
-    removeItem(actor, itemId, 1);
   }
 
   actor.backSlots[targetSlot] = itemId;
