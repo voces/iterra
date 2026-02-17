@@ -44,7 +44,7 @@ import {
   getBackSlotWeapons,
   addToBackSlots,
   removeFromBackSlots,
-  isWeapon,
+  canStoreOnBack,
   canAddToBackSlots,
 } from './actor.ts';
 
@@ -771,8 +771,8 @@ export class Game {
 
     const player = this.state.player;
 
-    if (!isWeapon(itemId)) {
-      this.log('That item is not a weapon.');
+    if (!canStoreOnBack(itemId)) {
+      this.log('That item cannot be stored on your back.');
       return false;
     }
 

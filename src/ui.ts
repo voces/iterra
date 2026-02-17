@@ -6,7 +6,7 @@ import {
   getDamageRange,
   getEquipmentArmorBonus,
   getEquipmentRangedBonus,
-  isWeapon,
+  canStoreOnBack,
   canAddToBackSlots,
   getBackSlotWeapons,
   isTwoHanded,
@@ -473,8 +473,8 @@ export class UI {
         // Unequip action
         actions.push(`<button class="item-action-btn unequip-btn" data-slot="${slot}">Unequip</button>`);
 
-        // Add to back slots (if weapon and can add)
-        if (slot === 'mainHand' && isWeapon(itemId) && canAddToBackSlots(player, itemId)) {
+        // Add to back slots (if weapon/shield and can add)
+        if ((slot === 'mainHand' || slot === 'offHand') && canAddToBackSlots(player, itemId)) {
           const handLabel = isTwoHanded(itemId) ? '2H' : '1H';
           actions.push(`<button class="item-action-btn equip-back-slot-btn" data-item-id="${itemId}">Add to Back (${handLabel})</button>`);
         }
@@ -683,8 +683,8 @@ export class UI {
           }
         }
 
-        // Add to back slots (if weapon, not in combat, and can add)
-        if (isWeapon(itemId) && !inCombat && canAddToBackSlots(player, itemId)) {
+        // Add to back slots (if weapon/shield, not in combat, and can add)
+        if (canStoreOnBack(itemId) && !inCombat && canAddToBackSlots(player, itemId)) {
           const handLabel = isTwoHanded(itemId) ? '2H' : '1H';
           actions.push(`<button class="item-action-btn back-slot-btn" data-item-id="${itemId}">Add to Back (${handLabel})</button>`);
         }
