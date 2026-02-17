@@ -649,8 +649,8 @@ export function getBackSlotWeapons(actor: Actor): (string | null)[] {
 }
 
 // Add an item to back slots (moves from hands or inventory)
-// Optionally specify a slot index to add to a specific slot
-export function addToBackSlots(actor: Actor, itemId: string, slotIndex?: number): boolean {
+// Optionally specify a slot index and whether the item is coming from equipped hands
+export function addToBackSlots(actor: Actor, itemId: string, slotIndex?: number, fromEquipped: boolean = false): boolean {
   if (!canAddToBackSlots(actor, itemId)) return false;
 
   // Check if player has the item in inventory or equipped
@@ -669,19 +669,37 @@ export function addToBackSlots(actor: Actor, itemId: string, slotIndex?: number)
     if (targetSlot === -1) return false;
   }
 
-  // Prioritize taking from inventory over unequipping from hands
-  if (hasInInventory) {
-    removeItem(actor, itemId, 1);
-  } else if (hasEquippedMainHand) {
-    const item = getItem(itemId);
-    if (item?.twoHanded) {
-      delete actor.equipment.mainHand;
+  // Remove from source based on context
+  if (fromEquipped) {
+    // Explicitly from equipment - unequip first, fall back to inventory
+    if (hasEquippedMainHand) {
+      const item = getItem(itemId);
+      if (item?.twoHanded) {
+        delete actor.equipment.mainHand;
+        delete actor.equipment.offHand;
+      } else {
+        delete actor.equipment.mainHand;
+      }
+    } else if (hasEquippedOffHand) {
       delete actor.equipment.offHand;
-    } else {
-      delete actor.equipment.mainHand;
+    } else if (hasInInventory) {
+      removeItem(actor, itemId, 1);
     }
-  } else if (hasEquippedOffHand) {
-    delete actor.equipment.offHand;
+  } else {
+    // Default (from inventory) - take from inventory first
+    if (hasInInventory) {
+      removeItem(actor, itemId, 1);
+    } else if (hasEquippedMainHand) {
+      const item = getItem(itemId);
+      if (item?.twoHanded) {
+        delete actor.equipment.mainHand;
+        delete actor.equipment.offHand;
+      } else {
+        delete actor.equipment.mainHand;
+      }
+    } else if (hasEquippedOffHand) {
+      delete actor.equipment.offHand;
+    }
   }
 
   actor.backSlots[targetSlot] = itemId;

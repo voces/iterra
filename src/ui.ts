@@ -616,7 +616,7 @@ export class UI {
         e.stopPropagation();
         const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
         if (itemId) {
-          this.game.addToBackSlots(itemId);
+          this.game.addToBackSlots(itemId, true);
           this.selectedEquipSlot = null;
         }
       });

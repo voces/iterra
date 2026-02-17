@@ -763,7 +763,7 @@ export class Game {
 
   // === Weapon Back Slots Management ===
 
-  addToBackSlots(itemId: string): boolean {
+  addToBackSlots(itemId: string, fromEquipped: boolean = false): boolean {
     if (this.state.encounter) {
       this.log("Can't modify back slots during combat!");
       return false;
@@ -792,7 +792,7 @@ export class Game {
       return false;
     }
 
-    if (addToBackSlots(player, itemId)) {
+    if (addToBackSlots(player, itemId, undefined, fromEquipped)) {
       const item = getItem(itemId);
       this.log(`Added ${item?.name ?? itemId} to back slots.`);
       this.emit('turn');
