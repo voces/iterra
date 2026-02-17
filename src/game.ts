@@ -36,7 +36,17 @@ import {
   STAT_NAMES,
 } from './stats.ts';
 import { getLocation } from './locations.ts';
-import { createEnterLocationAction } from './actions.ts';
+import {
+  createEnterLocationAction,
+  createWeaponAttackAction,
+} from './actions.ts';
+import {
+  getBackSlotWeapons,
+  addToBackSlots,
+  removeFromBackSlots,
+  canStoreOnBack,
+  canAddToBackSlots,
+} from './actor.ts';
 
 export type GameEventType = 'turn' | 'log' | 'encounter-start' | 'encounter-end' | 'game-over' | 'level-up' | 'location-discovered' | 'location-entered' | 'location-exited' | 'exit-found' | 'save' | 'load';
 
@@ -771,6 +781,75 @@ export class Game {
     return false;
   }
 
+  // === Weapon Back Slots Management ===
+
+  addToBackSlots(itemId: string, fromEquipped: boolean = false): boolean {
+    if (this.state.encounter) {
+      this.log("Can't modify back slots during combat!");
+      return false;
+    }
+
+    const player = this.state.player;
+
+    if (!canStoreOnBack(itemId)) {
+      this.log('That item cannot be stored on your back.');
+      return false;
+    }
+
+    if (!canAddToBackSlots(player, itemId)) {
+      const item = getItem(itemId);
+      const alreadyOnBack = player.backSlots.includes(itemId);
+      const slotsUsed = player.backSlots.filter(s => s !== null).length;
+      if (alreadyOnBack) {
+        this.log('That weapon is already on your back.');
+      } else if (slotsUsed >= 3) {
+        this.log('Back slots are full (max 3 weapons).');
+      } else if (item?.twoHanded) {
+        this.log('Cannot add more two-handed weapons (max 2).');
+      } else {
+        this.log('Cannot add weapon to back slots.');
+      }
+      return false;
+    }
+
+    if (addToBackSlots(player, itemId, undefined, fromEquipped)) {
+      const item = getItem(itemId);
+      this.log(`Added ${item?.name ?? itemId} to back slots.`);
+      this.emit('turn');
+      return true;
+    }
+
+    this.log('Cannot add weapon to back slots.');
+    return false;
+  }
+
+  removeFromBackSlots(itemId: string): boolean {
+    if (this.state.encounter) {
+      this.log("Can't modify back slots during combat!");
+      return false;
+    }
+
+    const player = this.state.player;
+
+    if (removeFromBackSlots(player, itemId)) {
+      const item = getItem(itemId);
+      this.log(`Removed ${item?.name ?? itemId} from back slots.`);
+      this.emit('turn');
+      return true;
+    }
+
+    this.log('Weapon not found in back slots.');
+    return false;
+  }
+
+  getBackSlotsInfo(): { weapons: (string | null)[]; equipped: string | undefined } {
+    const player = this.state.player;
+    return {
+      weapons: player.backSlots,
+      equipped: player.equipment.mainHand,
+    };
+  }
+
   log(message: string): void {
     const entry: LogEntry = {
       turn: this.state.turn,
@@ -846,6 +925,21 @@ export class Game {
     const inCombat = this.state.encounter !== null;
     const enemyFleeing = this.state.encounter?.enemyFleeing ?? false;
     const player = this.state.player;
+
+    // In combat, add weapon-specific attack actions
+    if (inCombat) {
+      // Add attack action for currently equipped weapon (no penalty)
+      const equippedWeapon = player.equipment.mainHand;
+      actions.push(createWeaponAttackAction(equippedWeapon, false));
+
+      // Add attack actions for weapons in back slots (with penalty)
+      const backSlotWeapons = getBackSlotWeapons(player);
+      for (const weaponId of backSlotWeapons) {
+        if (weaponId !== null && weaponId !== equippedWeapon) {
+          actions.push(createWeaponAttackAction(weaponId, true));
+        }
+      }
+    }
 
     // Map gathering actions to their required resource nodes
     const gatheringRequirements: Record<string, string> = {
@@ -940,10 +1034,10 @@ export class Game {
       if (action.id === 'throw-rock' && getItemCount(player, 'rocks') <= 0) {
         return false;
       }
-      if (action.id === 'ranged-attack') {
-        if (player.equipment.mainHand !== 'bow' || getItemCount(player, 'arrow') <= 0) {
-          return false;
-        }
+
+      // Bow attacks require arrows (checked in action execute, but filter for UX)
+      if (action.id === 'attack-bow' && getItemCount(player, 'arrow') <= 0) {
+        return false;
       }
 
       // Can't wander with a placed campfire
@@ -1020,9 +1114,16 @@ export class Game {
 
     // Combat actions in combat get high base priority
     if (inCombat) {
+      // Weapon-specific attack actions - highest priority
+      if (action.tags.includes('weapon-attack')) {
+        score += 100;
+        return score;
+      }
+
+      // Legacy generic attack (for backwards compatibility)
       if (action.id === 'attack') score += 100;
       if (action.id === 'flee') score += 80;
-      if (action.id === 'ranged-attack' && player.equipment.mainHand === 'bow') score += 95;
+
       if (action.id === 'throw-rock') score += 70;
       if (action.id === 'chase' && enemyFleeing) score += 90;
       return score;

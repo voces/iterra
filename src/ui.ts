@@ -6,6 +6,10 @@ import {
   getDamageRange,
   getEquipmentArmorBonus,
   getEquipmentRangedBonus,
+  canStoreOnBack,
+  canAddToBackSlots,
+  getBackSlotWeapons,
+  isTwoHanded,
 } from './actor.ts';
 import { getItem } from './items.ts';
 import { STAT_NAMES, STAT_DESCRIPTIONS, STAT_TYPES } from './stats.ts';
@@ -14,6 +18,9 @@ import { SKILL_TYPES, SKILL_NAMES, SKILL_DESCRIPTIONS } from './skills.ts';
 export class UI {
   private game: Game;
   private actionGroupState: Map<string, boolean> = new Map(); // Track action group expanded state (true = expanded)
+  private selectedInventoryItem: string | null = null; // Currently selected inventory item
+  private selectedEquipSlot: EquipSlot | null = null; // Currently selected equipment slot
+  private selectedBackSlot: number | null = null; // Currently selected back slot index
   private elements: {
     levelCount: HTMLElement;
     xpCount: HTMLElement;
@@ -417,15 +424,6 @@ export class UI {
     const equipment = player.equipment;
     const inCombat = this.game.state.encounter !== null;
 
-    const slots: { slot: EquipSlot; label: string }[] = [
-      { slot: 'mainHand', label: 'Main Hand' },
-      { slot: 'offHand', label: 'Off Hand' },
-      { slot: 'head', label: 'Head' },
-      { slot: 'chest', label: 'Chest' },
-      { slot: 'legs', label: 'Legs' },
-      { slot: 'feet', label: 'Feet' },
-    ];
-
     // Get total bonuses for display
     const damageRange = getDamageRange(player);
     const armorBonus = getEquipmentArmorBonus(player);
@@ -447,7 +445,13 @@ export class UI {
       ? equipment.mainHand
       : null;
 
-    for (const { slot, label } of slots) {
+    // Weapon slots: mainHand, offHand, then back slots
+    const weaponSlots: { slot: EquipSlot; label: string }[] = [
+      { slot: 'mainHand', label: 'Main Hand' },
+      { slot: 'offHand', label: 'Off Hand' },
+    ];
+
+    for (const { slot, label } of weaponSlots) {
       const itemId = equipment[slot];
 
       // Skip offHand display for two-handed weapons
@@ -457,27 +461,186 @@ export class UI {
 
       const item = itemId ? getItem(itemId) : null;
       const itemName = item?.name ?? 'Empty';
-      const isTwoHanded = item?.twoHanded;
+      const itemIsTwoHanded = item?.twoHanded;
+      const slotLabel = itemIsTwoHanded ? 'Both Hands' : label;
+      const isSelected = this.selectedEquipSlot === slot;
+      const selectedClass = isSelected ? 'selected' : '';
 
-      const slotLabel = isTwoHanded ? 'Both Hands' : label;
+      // Build action buttons for expanded view
+      let actionsHtml = '';
+      if (isSelected && itemId && !inCombat) {
+        const actions: string[] = [];
+
+        // Unequip action
+        actions.push(`<button class="item-action-btn unequip-btn" data-slot="${slot}">Unequip</button>`);
+
+        // Add to back slots (if weapon/shield and can add)
+        if ((slot === 'mainHand' || slot === 'offHand') && canAddToBackSlots(player, itemId)) {
+          const handLabel = isTwoHanded(itemId) ? '2H' : '1H';
+          actions.push(`<button class="item-action-btn equip-back-slot-btn" data-item-id="${itemId}">Add to Back (${handLabel})</button>`);
+        }
+
+        actionsHtml = `<div class="item-expanded-actions">${actions.join('')}</div>`;
+      }
 
       html += `
-        <div class="equipment-slot">
-          <span class="slot-label">${slotLabel}:</span>
-          <span class="slot-item">${itemName}</span>
-          ${itemId && !inCombat ? `<button class="unequip-btn" data-slot="${slot}" title="Unequip">×</button>` : ''}
+        <div class="equipment-slot ${selectedClass}" data-slot="${slot}">
+          <div class="slot-header">
+            <span class="slot-label">${slotLabel}:</span>
+            <span class="slot-item">${itemName}</span>
+          </div>
+          ${actionsHtml}
+        </div>
+      `;
+    }
+
+    // Back slots rendered inline after hand slots
+    const backSlotWeapons = getBackSlotWeapons(player);
+    const backSlotLabels = ['Left Back', 'Mid Back', 'Right Back'];
+    for (let i = 0; i < 3; i++) {
+      const weaponId = backSlotWeapons[i];
+      const weapon = weaponId ? getItem(weaponId) : null;
+      const weaponName = weapon?.name ?? 'Empty';
+      const handLabel = weaponId ? (isTwoHanded(weaponId) ? '2H' : '1H') : '';
+      const isSelected = this.selectedBackSlot === i;
+      const selectedClass = isSelected ? 'selected' : '';
+
+      let actionsHtml = '';
+      if (isSelected && weaponId && !inCombat) {
+        const actions: string[] = [];
+        actions.push(`<button class="item-action-btn equip-from-back-btn" data-item-id="${weaponId}">Equip to Hands</button>`);
+        actions.push(`<button class="item-action-btn remove-back-slot-btn" data-item-id="${weaponId}">Remove from Back</button>`);
+        actionsHtml = `<div class="item-expanded-actions">${actions.join('')}</div>`;
+      }
+
+      const displayName = weaponId ? `${weaponName} (${handLabel})` : 'Empty';
+
+      html += `
+        <div class="equipment-slot back-slot-item ${selectedClass}" data-back-index="${i}">
+          <div class="slot-header">
+            <span class="slot-label">${backSlotLabels[i]}:</span>
+            <span class="slot-item">${displayName}</span>
+          </div>
+          ${actionsHtml}
+        </div>
+      `;
+    }
+
+    // Armor slots
+    const armorSlots: { slot: EquipSlot; label: string }[] = [
+      { slot: 'head', label: 'Head' },
+      { slot: 'chest', label: 'Chest' },
+      { slot: 'legs', label: 'Legs' },
+      { slot: 'feet', label: 'Feet' },
+    ];
+
+    for (const { slot, label } of armorSlots) {
+      const itemId = equipment[slot];
+      const item = itemId ? getItem(itemId) : null;
+      const itemName = item?.name ?? 'Empty';
+      const isSelected = this.selectedEquipSlot === slot;
+      const selectedClass = isSelected ? 'selected' : '';
+
+      // Build action buttons for expanded view
+      let actionsHtml = '';
+      if (isSelected && itemId && !inCombat) {
+        const actions: string[] = [];
+        actions.push(`<button class="item-action-btn unequip-btn" data-slot="${slot}">Unequip</button>`);
+        actionsHtml = `<div class="item-expanded-actions">${actions.join('')}</div>`;
+      }
+
+      html += `
+        <div class="equipment-slot ${selectedClass}" data-slot="${slot}">
+          <div class="slot-header">
+            <span class="slot-label">${label}:</span>
+            <span class="slot-item">${itemName}</span>
+          </div>
+          ${actionsHtml}
         </div>
       `;
     }
 
     this.elements.equipmentList.innerHTML = html;
 
-    // Add unequip button listeners
+    // Add click listeners to equipment slot headers for selection
+    this.elements.equipmentList.querySelectorAll('.equipment-slot').forEach((el) => {
+      const slotHeader = el.querySelector('.slot-header');
+      if (slotHeader) {
+        slotHeader.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const slot = el.getAttribute('data-slot') as EquipSlot;
+          const itemId = equipment[slot];
+          if (slot && itemId && !inCombat) {
+            this.selectedEquipSlot = this.selectedEquipSlot === slot ? null : slot;
+            this.selectedInventoryItem = null;
+            this.selectedBackSlot = null;
+            this.renderEquipment();
+            this.renderInventory();
+          }
+        });
+      }
+    });
+
+    // Add click listeners to back slot items for selection
+    this.elements.equipmentList.querySelectorAll('.back-slot-item').forEach((el) => {
+      const slotHeader = el.querySelector('.slot-header');
+      if (slotHeader) {
+        slotHeader.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const index = parseInt(el.getAttribute('data-back-index') ?? '-1', 10);
+          const weaponId = backSlotWeapons[index];
+          if (index >= 0 && weaponId && !inCombat) {
+            this.selectedBackSlot = this.selectedBackSlot === index ? null : index;
+            this.selectedEquipSlot = null;
+            this.selectedInventoryItem = null;
+            this.renderEquipment();
+            this.renderInventory();
+          }
+        });
+      }
+    });
+
+    // Add action button listeners
     this.elements.equipmentList.querySelectorAll('.unequip-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const slot = (e.target as HTMLElement).getAttribute('data-slot') as EquipSlot;
         if (slot) {
           this.game.unequip(slot);
+          this.selectedEquipSlot = null;
+        }
+      });
+    });
+
+    this.elements.equipmentList.querySelectorAll('.equip-back-slot-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
+        if (itemId) {
+          this.game.addToBackSlots(itemId, true);
+          this.selectedEquipSlot = null;
+        }
+      });
+    });
+
+    this.elements.equipmentList.querySelectorAll('.equip-from-back-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
+        if (itemId) {
+          this.game.equip(itemId, 'mainHand');
+          this.selectedBackSlot = null;
+        }
+      });
+    });
+
+    this.elements.equipmentList.querySelectorAll('.remove-back-slot-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
+        if (itemId) {
+          this.game.removeFromBackSlots(itemId);
+          this.selectedBackSlot = null;
         }
       });
     });
@@ -488,50 +651,121 @@ export class UI {
     const inventory = player.inventory;
     const inCombat = this.game.state.encounter !== null;
 
-    const items = Object.entries(inventory)
-      .filter(([_, count]) => count > 0)
-      .map(([itemId, count]) => {
-        const item = getItem(itemId);
-        const name = item?.name ?? itemId;
-        const canEquip = item?.equipSlot && !inCombat;
+    const itemEntries = Object.entries(inventory).filter(([_, count]) => count > 0);
 
-        return `
-          <div class="inventory-item">
-            <span class="item-name">${name}: <span class="item-count">${count}</span></span>
-            <div class="item-actions">
-              ${canEquip ? `<button class="equip-btn" data-item-id="${itemId}" data-slot="${item.equipSlot}" title="Equip">E</button>` : ''}
-              <button class="drop-btn" data-item-id="${itemId}" title="Drop 1">-</button>
-            </div>
-          </div>
-        `;
-      });
-
-    if (items.length === 0) {
+    if (itemEntries.length === 0) {
       this.elements.inventoryList.innerHTML = '<span class="inventory-empty">Empty</span>';
-    } else {
-      this.elements.inventoryList.innerHTML = items.join('');
-
-      // Add equip button listeners
-      this.elements.inventoryList.querySelectorAll('.equip-btn').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-          const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
-          const slot = (e.target as HTMLElement).getAttribute('data-slot') as EquipSlot;
-          if (itemId && slot) {
-            this.game.equip(itemId, slot);
-          }
-        });
-      });
-
-      // Add drop button listeners
-      this.elements.inventoryList.querySelectorAll('.drop-btn').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-          const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
-          if (itemId) {
-            this.game.dropItem(itemId, 1);
-          }
-        });
-      });
+      return;
     }
+
+    const items = itemEntries.map(([itemId, count]) => {
+      const item = getItem(itemId);
+      const name = item?.name ?? itemId;
+      const isSelected = this.selectedInventoryItem === itemId;
+      const selectedClass = isSelected ? 'selected' : '';
+
+      // Build action buttons for expanded view
+      let actionsHtml = '';
+      if (isSelected) {
+        const actions: string[] = [];
+
+        // Equip action (if equippable and not in combat)
+        if (item?.equipSlot && !inCombat) {
+          if (item.twoHanded) {
+            actions.push(`<button class="item-action-btn equip-btn" data-item-id="${itemId}" data-slot="mainHand">Equip (Both Hands)</button>`);
+          } else if (item.equipSlot === 'mainHand') {
+            actions.push(`<button class="item-action-btn equip-btn" data-item-id="${itemId}" data-slot="mainHand">Equip (Main Hand)</button>`);
+            // Check if can also equip to offHand (for shields/etc with offHand slot)
+          } else if (item.equipSlot === 'offHand') {
+            actions.push(`<button class="item-action-btn equip-btn" data-item-id="${itemId}" data-slot="offHand">Equip (Off Hand)</button>`);
+          } else {
+            const slotLabel = item.equipSlot.charAt(0).toUpperCase() + item.equipSlot.slice(1);
+            actions.push(`<button class="item-action-btn equip-btn" data-item-id="${itemId}" data-slot="${item.equipSlot}">Equip (${slotLabel})</button>`);
+          }
+        }
+
+        // Add to back slots (if weapon/shield, not in combat, and can add)
+        if (canStoreOnBack(itemId) && !inCombat && canAddToBackSlots(player, itemId)) {
+          const handLabel = isTwoHanded(itemId) ? '2H' : '1H';
+          actions.push(`<button class="item-action-btn back-slot-btn" data-item-id="${itemId}">Add to Back (${handLabel})</button>`);
+        }
+
+        // Drop actions
+        actions.push(`<button class="item-action-btn drop-btn" data-item-id="${itemId}" data-amount="1">Drop 1</button>`);
+        if (count > 1) {
+          actions.push(`<button class="item-action-btn drop-all-btn" data-item-id="${itemId}" data-amount="${count}">Drop All (${count})</button>`);
+        }
+
+        actionsHtml = `<div class="item-expanded-actions">${actions.join('')}</div>`;
+      }
+
+      return `
+        <div class="inventory-item ${selectedClass}" data-item-id="${itemId}">
+          <div class="item-header">
+            <span class="item-name">${name}</span>
+            <span class="item-count">×${count}</span>
+          </div>
+          ${actionsHtml}
+        </div>
+      `;
+    });
+
+    this.elements.inventoryList.innerHTML = items.join('');
+
+    // Add click listeners to item headers for selection
+    this.elements.inventoryList.querySelectorAll('.inventory-item').forEach((el) => {
+      const itemHeader = el.querySelector('.item-header');
+      if (itemHeader) {
+        itemHeader.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const itemId = el.getAttribute('data-item-id');
+          if (itemId) {
+            // Toggle selection
+            this.selectedInventoryItem = this.selectedInventoryItem === itemId ? null : itemId;
+            this.selectedEquipSlot = null; // Clear other selections
+            this.selectedBackSlot = null;
+            this.renderInventory();
+            this.renderEquipment();
+          }
+        });
+      }
+    });
+
+    // Add action button listeners
+    this.elements.inventoryList.querySelectorAll('.equip-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
+        const slot = (e.target as HTMLElement).getAttribute('data-slot') as EquipSlot;
+        if (itemId && slot) {
+          this.game.equip(itemId, slot);
+          this.selectedInventoryItem = null;
+        }
+      });
+    });
+
+    this.elements.inventoryList.querySelectorAll('.back-slot-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
+        if (itemId) {
+          this.game.addToBackSlots(itemId);
+          this.selectedInventoryItem = null;
+        }
+      });
+    });
+
+    this.elements.inventoryList.querySelectorAll('.drop-btn, .drop-all-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const itemId = (e.target as HTMLElement).getAttribute('data-item-id');
+        const amount = parseInt((e.target as HTMLElement).getAttribute('data-amount') ?? '1', 10);
+        if (itemId) {
+          this.game.dropItem(itemId, amount);
+          this.selectedInventoryItem = null;
+        }
+      });
+    });
   }
 
   private renderStructures(): void {

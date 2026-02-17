@@ -22,6 +22,7 @@ import type {
   Equipment,
   EquipmentInstances,
   MaterialQualities,
+  WeaponBackSlots,
 } from './types.ts';
 import { initialPlayerActions } from './actions.ts';
 import { recalculateStats } from './actor.ts';
@@ -54,6 +55,8 @@ interface SerializedActor {
   equipmentInstances: EquipmentInstances;
   levelInfo: LevelInfo;
   skills: Skills;
+  // Weapon back slots
+  backSlots?: WeaponBackSlots;
   // actions are excluded - re-attached on load
 }
 
@@ -113,6 +116,8 @@ function serializeActor(actor: Actor): SerializedActor {
     equipmentInstances: { ...actor.equipmentInstances },
     levelInfo: { ...actor.levelInfo, stats: { ...actor.levelInfo.stats }, statUsage: { ...actor.levelInfo.statUsage } },
     skills: { ...actor.skills },
+    // Weapon back slots
+    backSlots: [...actor.backSlots],
   };
 }
 
@@ -129,6 +134,22 @@ function deserializeActor(data: SerializedActor, isPlayer: boolean): Actor {
 
   // Ensure levelInfo has proper structure
   const levelInfo = ensureValidLevelInfo(data.levelInfo);
+
+  // Ensure back slots have proper structure (handle old saves)
+  // Convert old format (array of {itemId}) or new format to fixed tuple
+  const backSlots: [string | null, string | null, string | null] = [null, null, null];
+  if (data.backSlots) {
+    for (let i = 0; i < 3 && i < data.backSlots.length; i++) {
+      const slot = data.backSlots[i];
+      if (typeof slot === 'string') {
+        // New format: string or null directly
+        backSlots[i] = slot;
+      } else if (slot && typeof slot === 'object' && 'itemId' in slot) {
+        // Old format: {itemId: string}
+        backSlots[i] = (slot as { itemId: string }).itemId;
+      }
+    }
+  }
 
   const actor: Actor = {
     id: data.id,
@@ -149,6 +170,8 @@ function deserializeActor(data: SerializedActor, isPlayer: boolean): Actor {
     levelInfo,
     skills,
     actions,
+    // Weapon back slots
+    backSlots,
   };
 
   // Recalculate derived stats to ensure consistency

@@ -1,5 +1,5 @@
 import type { Action, Actor, ActionContext } from './types.ts';
-import { getQualityName } from './types.ts';
+import { getQualityName, MAX_TWO_HANDED_BACK } from './types.ts';
 import {
   dealDamage,
   isAlive,
@@ -15,6 +15,9 @@ import {
   applyArmor,
   getWeaponAccuracy,
   getArmorDodgePenalty,
+  switchToBackSlotWeapon,
+  countBackSlotWeapons,
+  isTwoHanded,
 } from './actor.ts';
 import { rollForResourceDiscovery, getResourceNode } from './resources.ts';
 import { getRecipe, canCraftRecipe, applyRecipe, attemptCraft } from './recipes.ts';
@@ -27,6 +30,7 @@ import {
 import {
   addSkillXp,
   getWeaponSkill,
+  getWeaponAttackName,
   getHarvestingFailureChance,
   getHarvestingYieldBonus,
   rollQualityValue,
@@ -869,6 +873,191 @@ export const eatRawMeat = createEatAction('rawMeat', 'eat-raw-meat', 'Eat Raw Me
 
 // === Combat Actions ===
 
+// Tick cost for switching weapons in combat
+const WEAPON_SWITCH_TICK_COST = 75;
+
+// Factory function to create a weapon-specific attack action
+// Handles melee and ranged weapons (bows consume arrows)
+export function createWeaponAttackAction(weaponId: string | undefined, isFromBackSlot: boolean = false): Action {
+  const item = weaponId ? getItem(weaponId) : null;
+  const attackName = getWeaponAttackName(weaponId);
+  const weaponName = item?.name ?? 'Fists';
+  const isRangedWeapon = item?.tags?.includes('ranged') ?? false;
+
+  // Back slot weapons have a small tick penalty
+  const baseCost = 200;
+  const backSlotPenalty = isFromBackSlot ? 50 : 0;
+  const tickCost = baseCost + backSlotPenalty;
+
+  const tags = ['combat', 'offensive', 'weapon-attack'];
+  if (isRangedWeapon) tags.push('ranged');
+
+  return {
+    id: weaponId ? `attack-${weaponId}` : 'attack-unarmed',
+    name: isFromBackSlot ? `${attackName} (${weaponName}) [Back]` : `${attackName} (${weaponName})`,
+    description: weaponId
+      ? `Attack with your ${weaponName.toLowerCase()}.${isFromBackSlot ? ' (Drawing from back)' : ''}`
+      : 'Attack with your bare fists.',
+    tickCost,
+    tags,
+    execute: (actor: Actor, context?: ActionContext) => {
+      if (!context?.encounter) {
+        return { success: false, message: 'Nothing to attack.' };
+      }
+
+      // Check if this back slot attack would result in too many two-handed weapons on back
+      if (isFromBackSlot && weaponId) {
+        const currentWeapon = actor.equipment.mainHand;
+        if (currentWeapon && isTwoHanded(currentWeapon)) {
+          // Count two-handed weapons on back, excluding the one we're drawing
+          const counts = countBackSlotWeapons(actor);
+          const twoHandedOnBackAfterDrawing = isTwoHanded(weaponId) ? counts.twoHanded - 1 : counts.twoHanded;
+          // If adding current weapon to back would exceed limit, block
+          if (twoHandedOnBackAfterDrawing + 1 > MAX_TWO_HANDED_BACK) {
+            const currentWeaponName = getItem(currentWeapon)?.name?.toLowerCase() ?? 'weapon';
+            return {
+              success: false,
+              message: `Cannot switch to ${weaponName.toLowerCase()} - no room for your ${currentWeaponName} on your back.`,
+            };
+          }
+        }
+      }
+
+      // For ranged weapons (bow), require and consume ammo
+      if (isRangedWeapon && weaponId === 'bow') {
+        if (getItemCount(actor, 'arrow') <= 0) {
+          return { success: false, message: 'You have no arrows.' };
+        }
+        removeItem(actor, 'arrow', 1);
+      }
+
+      const enemy = context.encounter.enemy;
+
+      // Track stat usage for auto-leveling
+      if (isRangedWeapon) {
+        trackStatUsage(actor.levelInfo, 'precision', 1);
+        trackStatUsage(actor.levelInfo, 'agility', 0.5);
+      } else {
+        trackStatUsage(actor.levelInfo, 'strength', 1);
+        trackStatUsage(actor.levelInfo, 'precision', 0.5);
+      }
+
+      // Determine weapon skill based on equipped weapon
+      const weaponSkill = getWeaponSkill(weaponId);
+
+      // Roll damage (weapon range + stat scaling)
+      const baseDamage = rollDamage(actor);
+      const weaponAccuracy = getWeaponAccuracy(actor);
+      const enemyDodgePenalty = getArmorDodgePenalty(enemy);
+
+      // Ranged bonus vs fleeing enemies
+      const rangedBonus = isRangedWeapon ? getEquipmentRangedBonus(actor) : 0;
+      const fleeingBonus = context.encounter.enemyFleeing ? rangedBonus : 0;
+
+      // Use AR vs DR combat system
+      const attackerSkillLevel = actor.skills[weaponSkill].level;
+      const defenderShieldSkillLevel = enemy.skills?.shield?.level ?? 0;
+      const result = calculateAttack(actor, enemy, baseDamage + fleeingBonus, {
+        attackerWeaponAccuracy: weaponAccuracy,
+        attackerSkillLevel,
+        defenderArmorPenalty: enemyDodgePenalty,
+        defenderShieldSkillLevel,
+        isRanged: isRangedWeapon,
+      });
+
+      // Award weapon skill XP
+      const skillXp = result.hit ? SKILL_XP_AWARDS.combatHit : SKILL_XP_AWARDS.combatMiss;
+      const turn = context?.game?.turn ?? 0;
+      const skillGain = addSkillXp(actor.skills[weaponSkill], skillXp, turn);
+
+      const actionVerb = attackName.toLowerCase();
+
+      // Track projectile for recovery (ranged weapons)
+      const projectileOutcome = isRangedWeapon && weaponId === 'bow' ? {
+        type: 'arrow' as const,
+        outcome: result.hit ? 'hit' as const : (result.dodged ? 'dodged' as const : 'missed' as const),
+      } : undefined;
+
+      if (!result.hit) {
+        // Swap weapons after attacking from back slot (even on miss)
+        if (isFromBackSlot && weaponId) {
+          switchToBackSlotWeapon(actor, weaponId);
+        }
+        const msg = result.dodged
+          ? `The ${enemy.name} dodges your ${actionVerb}!`
+          : `You ${actionVerb} at the ${enemy.name} but miss!`;
+        return { success: true, message: msg, projectileUsed: projectileOutcome };
+      }
+
+      // Apply enemy armor to damage
+      const enemyArmor = getEquipmentArmorBonus(enemy);
+      const finalDamage = applyArmor(result.damage, enemyArmor);
+      dealDamage(enemy, finalDamage);
+
+      if (result.critical) {
+        trackStatUsage(actor.levelInfo, 'luck', 1);
+      }
+
+      const critText = result.critical ? ' Critical hit!' : '';
+      const levelUpText = skillGain.levelsGained > 0 ? ` ${weaponSkill} leveled up!` : '';
+
+      // Swap weapons after attacking from back slot
+      if (isFromBackSlot && weaponId) {
+        switchToBackSlotWeapon(actor, weaponId);
+      }
+
+      if (!isAlive(enemy)) {
+        return {
+          success: true,
+          message: `You ${actionVerb} the ${enemy.name} for ${finalDamage} damage.${critText}${levelUpText} Defeated!`,
+          encounterEnded: true,
+          projectileUsed: projectileOutcome,
+        };
+      }
+
+      return {
+        success: true,
+        message: `You ${actionVerb} the ${enemy.name} for ${finalDamage} damage.${critText}${levelUpText} (${enemy.health}/${enemy.maxHealth} HP)`,
+        projectileUsed: projectileOutcome,
+      };
+    },
+  };
+}
+
+// Switch weapon action - swaps with a weapon from back slots
+export function createSwitchWeaponAction(weaponId: string): Action {
+  const item = getItem(weaponId);
+  const weaponName = item?.name ?? weaponId;
+
+  return {
+    id: `switch-weapon-${weaponId}`,
+    name: `Switch to ${weaponName}`,
+    description: `Draw your ${weaponName.toLowerCase()} from your back.`,
+    tickCost: WEAPON_SWITCH_TICK_COST,
+    tags: ['combat', 'weapon-switch'],
+    execute: (actor: Actor, _context?: ActionContext) => {
+      const previousWeapon = switchToBackSlotWeapon(actor, weaponId);
+      if (previousWeapon === null && actor.equipment.mainHand !== weaponId) {
+        return {
+          success: false,
+          message: `Cannot switch to ${weaponName}.`,
+        };
+      }
+
+      const prevItem = previousWeapon ? getItem(previousWeapon) : null;
+      const prevName = prevItem?.name ?? 'fists';
+
+      return {
+        success: true,
+        message: previousWeapon
+          ? `You sheathe your ${prevName.toLowerCase()} and draw your ${weaponName.toLowerCase()}.`
+          : `You draw your ${weaponName.toLowerCase()}.`,
+      };
+    },
+  };
+}
+
+// Legacy attack action for backwards compatibility (uses currently equipped weapon)
 export const attack: Action = {
   id: 'attack',
   name: 'Attack',
@@ -876,72 +1065,9 @@ export const attack: Action = {
   tickCost: 200,
   tags: ['combat', 'offensive'],
   execute: (actor: Actor, context?: ActionContext) => {
-    if (!context?.encounter) {
-      return { success: false, message: 'Nothing to attack.' };
-    }
-
-    const enemy = context.encounter.enemy;
-
-    // Track stat usage for auto-leveling
-    trackStatUsage(actor.levelInfo, 'strength', 1);
-    trackStatUsage(actor.levelInfo, 'precision', 0.5);
-
-    // Determine weapon skill
     const weaponId = actor.equipment.mainHand;
-    const weaponSkill = getWeaponSkill(weaponId);
-
-    // Roll damage (weapon range + stat scaling)
-    const baseDamage = rollDamage(actor);
-    const weaponAccuracy = getWeaponAccuracy(actor);
-    const enemyDodgePenalty = getArmorDodgePenalty(enemy);
-
-    // Use new AR vs DR combat system
-    const attackerSkillLevel = actor.skills[weaponSkill].level;
-    const defenderShieldSkillLevel = enemy.skills?.shield?.level ?? 0;
-    const result = calculateAttack(actor, enemy, baseDamage, {
-      attackerWeaponAccuracy: weaponAccuracy,
-      attackerSkillLevel,
-      defenderArmorPenalty: enemyDodgePenalty,
-      defenderShieldSkillLevel,
-      isRanged: false,
-    });
-
-    // Award weapon skill XP
-    const skillXp = result.hit ? SKILL_XP_AWARDS.combatHit : SKILL_XP_AWARDS.combatMiss;
-    const turn = context?.game?.turn ?? 0;
-    const skillGain = addSkillXp(actor.skills[weaponSkill], skillXp, turn);
-
-    if (!result.hit) {
-      const msg = result.dodged
-        ? `The ${enemy.name} dodges your attack!`
-        : `You swing at the ${enemy.name} but miss!`;
-      return { success: true, message: msg };
-    }
-
-    // Apply enemy armor to damage
-    const enemyArmor = getEquipmentArmorBonus(enemy);
-    const finalDamage = applyArmor(result.damage, enemyArmor);
-    dealDamage(enemy, finalDamage);
-
-    if (result.critical) {
-      trackStatUsage(actor.levelInfo, 'luck', 1);
-    }
-
-    const critText = result.critical ? ' Critical hit!' : '';
-    const levelUpText = skillGain.levelsGained > 0 ? ` ${weaponSkill} leveled up!` : '';
-
-    if (!isAlive(enemy)) {
-      return {
-        success: true,
-        message: `You strike the ${enemy.name} for ${finalDamage} damage.${critText}${levelUpText} Defeated!`,
-        encounterEnded: true,
-      };
-    }
-
-    return {
-      success: true,
-      message: `You strike the ${enemy.name} for ${finalDamage} damage.${critText}${levelUpText} (${enemy.health}/${enemy.maxHealth} HP)`,
-    };
+    const weaponAction = createWeaponAttackAction(weaponId);
+    return weaponAction.execute(actor, context);
   },
 };
 
@@ -1289,7 +1415,7 @@ export function createEnterLocationAction(locationId: string, locationName: stri
 
 // === Action Collections ===
 
-export const combatActions: Action[] = [attack, throwRock, rangedAttack, flee, chase];
+export const combatActions: Action[] = [throwRock, flee, chase];
 export const gatheringActions: Action[] = [gatherBerries, gatherSticks, gatherRocks, gatherFiber];
 export const craftingActions: Action[] = [
   craftCampfire,
